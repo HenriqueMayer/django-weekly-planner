@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# uv
+.uv-cache/
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Environment variables
+# .env.example is intentionally NOT ignored — it documents the required keys.
+.env
+.env.*
+!.env.example
+
+# NOTE (PRD risk R4): compiled Tailwind output (static/css/app.css) must stay
+# committed. Do not add a blanket static/css/* or static/css/app.css ignore.
+
+# Tailwind standalone CLI binary (~100MB) — not source, fetched per-machine.
+# See README "Development" section for the download command. Do not commit it.
+bin/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/

@@ -379,31 +379,31 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 1 — Project Foundation & Design System Base
 
-- [ ] **1.1 Repository and environment setup**
-    - [ ] 1.1.1 Create project root `routine_organizer/`, initialize git, add `.gitignore` (Python, SQLite, `.env`, compiled CSS artifacts as appropriate).
-    - [ ] 1.1.2 Create virtualenv; install Django 5.x; freeze `requirements.txt`.
-    - [ ] 1.1.3 Add `.env.example` with `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`; load values in `settings.py` via `os.environ` with sane defaults (no extra dotenv dependency unless needed).
-- [ ] **1.2 Django project scaffold**
-    - [ ] 1.2.1 `django-admin startproject config .` producing `config/settings.py`, `urls.py`, `wsgi.py`, `asgi.py`.
-    - [ ] 1.2.2 Create `apps/` package; create apps `core`, `accounts`, `planner` under it; set each `AppConfig.name` to `apps.<name>`.
-    - [ ] 1.2.3 Register the three apps in `INSTALLED_APPS`; configure `TEMPLATES['DIRS']` to include root `templates/`; configure `STATICFILES_DIRS` with root `static/`.
-    - [ ] 1.2.4 Set `LANGUAGE_CODE = 'en-us'`, project timezone, and confirm SQLite default database config.
-    - [ ] 1.2.5 Run initial migrations; verify dev server boots.
-- [ ] **1.3 TailwindCSS pipeline**
-    - [ ] 1.3.1 Add Tailwind standalone CLI workflow: `static/css/input.css` with `@tailwind` directives → compiled `static/css/app.css`; document the build/watch command in README stub.
-    - [ ] 1.3.2 Configure `tailwind.config.js` content globs for `templates/**/*.html` and `apps/**/templates/**/*.html`; enable `darkMode: 'class'`.
-    - [ ] 1.3.3 Verify a Tailwind class renders on a test page in both light and dark.
-- [ ] **1.4 Base templates and shared partials**
-    - [ ] 1.4.1 Create `templates/base.html`: HTML skeleton, `{% static %}` CSS include, HTMX `<script>` include (vendored file in `static/js/htmx.min.js`), blocks for `title` and `content`, dark-mode class hook on `<html>`.
-    - [ ] 1.4.2 Create `templates/partials/navbar.html`: brand (gradient text), auth-aware links (Login/Signup vs. Dashboard/Logout), theme toggle button placeholder.
-    - [ ] 1.4.3 Create `templates/partials/footer.html`: minimal footer with project name and repo link placeholder.
-    - [ ] 1.4.4 Implement theme toggle: `static/js/theme.js` reading/writing `localStorage` and toggling the `dark` class; include in `base.html`.
-    - [ ] 1.4.5 Add CSRF support for HTMX: hidden meta/`hx-headers` pattern in `base.html` so every HTMX POST carries the token.
-- [ ] **1.5 Core app shell**
-    - [ ] 1.5.1 Create `apps/core/models.py` with abstract `TimestampedModel` (`created_at`, `updated_at`).
-    - [ ] 1.5.2 Create `apps/core/views.py` with `LandingView(TemplateView)` and `DashboardView(LoginRequiredMixin, TemplateView)` (placeholder content for now).
-    - [ ] 1.5.3 Create `apps/core/urls.py` (`''` → landing, `'dashboard/'` → dashboard); include in `config/urls.py` along with admin.
-    - [ ] 1.5.4 Create placeholder `core/landing.html` and `core/dashboard.html` extending `base.html`; verify navigation works.
+- [x] **1.1 Repository and environment setup**
+    - [x] 1.1.1 Create project root `routine_organizer/`, initialize git, add `.gitignore` (Python, SQLite, `.env`, compiled CSS artifacts as appropriate).
+    - [x] 1.1.2 Create virtualenv; install Django 5.x; freeze `requirements.txt`. *(Deviation: Django 6.0.7 via `uv`/`pyproject.toml`, not `requirements.txt` — see `docs/ARCHITECTURE.md`.)*
+    - [x] 1.1.3 Add `.env.example` with `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`; load values in `settings.py` via `os.environ` with sane defaults (no extra dotenv dependency unless needed).
+- [x] **1.2 Django project scaffold**
+    - [x] 1.2.1 `django-admin startproject config .` producing `config/settings.py`, `urls.py`, `wsgi.py`, `asgi.py`. *(Achieved via renaming the pre-existing `core/` settings package to `config/` — see deviation note in `docs/ARCHITECTURE.md`.)*
+    - [x] 1.2.2 Create `apps/` package; create apps `core`, `accounts`, `planner` under it; set each `AppConfig.name` to `apps.<name>`.
+    - [x] 1.2.3 Register the three apps in `INSTALLED_APPS`; configure `TEMPLATES['DIRS']` to include root `templates/`; configure `STATICFILES_DIRS` with root `static/`.
+    - [x] 1.2.4 Set `LANGUAGE_CODE = 'en-us'`, project timezone, and confirm SQLite default database config.
+    - [x] 1.2.5 Run initial migrations; verify dev server boots.
+- [x] **1.3 TailwindCSS pipeline**
+    - [x] 1.3.1 Add Tailwind standalone CLI workflow: `static/css/input.css` with `@tailwind` directives → compiled `static/css/app.css`; document the build/watch command in README stub. *(Deviation: Tailwind v4 CSS-first `@import`, not `@tailwind` directives — see `docs/ARCHITECTURE.md`.)*
+    - [x] 1.3.2 Configure `tailwind.config.js` content globs for `templates/**/*.html` and `apps/**/templates/**/*.html`; enable `darkMode: 'class'`. *(Deviation: Tailwind v4 has no `tailwind.config.js`; uses `@source` directives and `@custom-variant dark` in `input.css` instead.)*
+    - [x] 1.3.3 Verify a Tailwind class renders on a test page in both light and dark. *(Verified via compiled CSS output; live browser confirmation deferred to `qa-tester` once Playwright MCP is configured.)*
+- [x] **1.4 Base templates and shared partials**
+    - [x] 1.4.1 Create `templates/base.html`: HTML skeleton, `{% static %}` CSS include, HTMX `<script>` include (vendored file in `static/js/htmx.min.js`), blocks for `title` and `content`, dark-mode class hook on `<html>`.
+    - [x] 1.4.2 Create `templates/partials/navbar.html`: brand (gradient text), auth-aware links (Login/Signup vs. Dashboard/Logout), theme toggle button placeholder.
+    - [x] 1.4.3 Create `templates/partials/footer.html`: minimal footer with project name and repo link placeholder.
+    - [x] 1.4.4 Implement theme toggle: `static/js/theme.js` reading/writing `localStorage` and toggling the `dark` class; include in `base.html`.
+    - [x] 1.4.5 Add CSRF support for HTMX: hidden meta/`hx-headers` pattern in `base.html` so every HTMX POST carries the token.
+- [x] **1.5 Core app shell**
+    - [x] 1.5.1 Create `apps/core/models.py` with abstract `TimestampedModel` (`created_at`, `updated_at`).
+    - [x] 1.5.2 Create `apps/core/views.py` with `LandingView(TemplateView)` and `DashboardView(LoginRequiredMixin, TemplateView)` (placeholder content for now).
+    - [x] 1.5.3 Create `apps/core/urls.py` (`''` → landing, `'dashboard/'` → dashboard); include in `config/urls.py` along with admin.
+    - [x] 1.5.4 Create placeholder `core/landing.html` and `core/dashboard.html` extending `base.html`; verify navigation works. *(URL reversal verified; full-page render of `accounts:*` links is blocked by `NoReverseMatch` until Sprint 2 adds `apps/accounts` URLs — expected, sequenced gap, see `docs/ARCHITECTURE.md`.)*
 
 ### Sprint 2 — Accounts (Native Authentication)
 

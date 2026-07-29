@@ -1,0 +1,43 @@
+/*
+ * Time-Blocking Routine Organizer — Tailwind CSS v4 entry point.
+ *
+ * Built with the Tailwind standalone CLI (no Node/npm project — see the
+ * "Development" section of the root README for build/watch commands).
+ *
+ * DEVIATION FROM PRD §13 TASK 1.3: the PRD describes a Tailwind v3 workflow
+ * (`@tailwind` directives + `tailwind.config.js` + `darkMode: 'class'`).
+ * Tailwind is now v4, which configures itself in CSS rather than JS. There
+ * is intentionally no `tailwind.config.js` in this project; the v3 concepts
+ * map onto this file as follows:
+ *   - `@tailwind base/components/utilities` -> `@import 'tailwindcss'`
+ *   - `darkMode: 'class'`                   -> `@custom-variant dark (...)`
+ *   - `content: [...]` globs                -> `@source` directives below
+ *
+ * Design tokens (PRD §9.1) — mirrored here for reference, source of truth
+ * is docs/ProductRequirementDocument.md:
+ *   Primary            indigo-600 (light) / indigo-400 (dark)
+ *   Primary gradient    from-indigo-600 to-violet-600 (light)
+ *                        from-indigo-500 to-violet-500 (dark)
+ *   Surface             white / slate-50 (light) — slate-900 / slate-800 (dark)
+ *   Grid lines           slate-200 (light) / slate-700 (dark)
+ *   Text                 slate-900 / slate-600 (light) — slate-100 / slate-400 (dark)
+ *   Success              emerald-500 (light) / emerald-400 (dark)
+ *   Danger                rose-600 (light) / rose-500 (dark)
+ * All of the above are Tailwind's default palette entries — no custom
+ * `@theme` color overrides are needed. Fonts use the default `font-sans`
+ * system stack (Inter self-hosting deferred — see report).
+ */
+
+@import 'tailwindcss';
+
+/* v4 replacement for `darkMode: 'class'`: toggle dark styles from a `.dark`
+   class anywhere up the tree instead of `prefers-color-scheme`. The JS that
+   adds/removes this class on <html> and persists it to localStorage is
+   static/js/theme.js (owned by htmx-interaction, PRD 1.4.4). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* v4 replacement for tailwind.config.js `content` globs: register every
+   directory containing templates so the class scanner finds them. Paths are
+   relative to this file (static/css/input.css). */
+@source '../../templates';
+@source '../../apps';

@@ -1,0 +1,59 @@
+{% load static %}
+<!DOCTYPE html>
+{# The `dark` class on <html> is the hook Tailwind's `@custom-variant dark`
+   (static/css/input.css) reacts to. static/js/theme.js (PRD 1.4.4,
+   owned by htmx-interaction) is responsible for:
+     1. an inline, synchronous snippet in <head> (before this stylesheet
+        paints) that reads localStorage and adds the `dark` class here to
+        avoid a flash of the wrong theme, and
+     2. the click handler on #theme-toggle (templates/partials/navbar.html)
+        that toggles the class and persists the choice.
+   This template only provides the empty class attribute hook. #}
+<html lang="en" class="">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Time-Blocking Routine Organizer{% endblock %}</title>
+
+    <!-- htmx-interaction: synchronous inline dark-mode bootstrap (PRD 1.4.4).
+         Runs before app.css loads so <html> already carries the correct
+         `dark` class (or not) at first paint -- no flash of the wrong
+         theme. Kept intentionally tiny: read localStorage, else fall back
+         to the OS preference. -->
+    <script>
+        (function () {
+            var stored = localStorage.getItem('theme');
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var isDark = stored ? stored === 'dark' : prefersDark;
+            document.documentElement.classList.toggle('dark', isDark);
+        })();
+    </script>
+
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body
+    class="min-h-screen flex flex-col bg-white dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 antialiased"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+>
+    {% include 'partials/navbar.html' %}
+
+    <main class="mx-auto max-w-7xl px-4 py-8 flex-1 w-full">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% include 'partials/footer.html' %}
+
+    <!-- htmx-interaction: vendored HTMX build (PRD 1.4.1). Served from
+         static/js/htmx.min.js, never a CDN, per this project's no-CDN-JS
+         constraint. -->
+    <script src="{% static 'js/htmx.min.js' %}"></script>
+
+    <!-- htmx-interaction: theme toggle click handler + localStorage
+         persistence (PRD 1.4.4). -->
+    <script src="{% static 'js/theme.js' %}"></script>
+
+    {% block extra_body %}{% endblock %}
+</body>
+</html>
