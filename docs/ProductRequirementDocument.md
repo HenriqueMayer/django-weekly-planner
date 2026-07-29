@@ -456,18 +456,18 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 5 — Grid Rendering (Server-Side)
 
-- [ ] **5.1 Grid computation service**
-    - [ ] 5.1.1 Implement a pure-Python grid builder (e.g., `apps/planner/grid.py`): given settings + user blocks, produce a matrix of rows (slot start label) × 7 cells, where each cell is `empty`, `block-start` (with rowspan), or `occupied` (skipped due to a spanning block above).
-    - [ ] 5.1.2 Implement time-label formatting honoring 24h vs. 12h AM/PM.
-    - [ ] 5.1.3 Handle blocks not aligned to the current interval (snap display to nearest slot boundary; keep stored times authoritative).
-- [ ] **5.2 Grid views and templates**
-    - [ ] 5.2.1 Create `GridView(LoginRequiredMixin, TemplateView)` at `planner/` that builds the grid context; embed it in the dashboard (or make dashboard delegate to it).
-    - [ ] 5.2.2 Create `planner/grid.html`: `<table>` with sticky day-header row and sticky time column; iterate the matrix rendering `<td rowspan="...">` for block starts and skipping occupied cells.
-    - [ ] 5.2.3 Create `planner/partials/block_cell.html`: block presentation (label, hex background, readable text color rule, hover controls container).
-    - [ ] 5.2.4 Create `planner/partials/empty_cell.html`: clickable empty slot carrying `data-day`, `data-start`, `data-end` attributes.
-    - [ ] 5.2.5 Responsive behavior: horizontal scroll wrapper for narrow screens; verify dark mode borders/contrast.
-- [ ] **5.3 Seed and verify**
-    - [ ] 5.3.1 Create a few blocks via admin; verify correct placement, rowspans, midnight-ending block, and both interval settings (30/60).
+- [x] **5.1 Grid computation service**
+    - [x] 5.1.1 Implement a pure-Python grid builder (e.g., `apps/planner/grid.py`): given settings + user blocks, produce a matrix of rows (slot start label) × 7 cells, where each cell is `empty`, `block-start` (with rowspan), or `occupied` (skipped due to a spanning block above). *(Deviation: returns typed dataclasses `WeekGrid`/`GridRow`/`GridCell` rather than a raw nested list — same matrix shape, template-friendlier attribute access. Also exposes `out_of_range_blocks` and `unplaced_blocks` lists so PRD R3's "flag, don't delete" guidance has somewhere to put blocks that can't occupy a cell — see `docs/ARCHITECTURE.md`.)*
+    - [x] 5.1.2 Implement time-label formatting honoring 24h vs. 12h AM/PM.
+    - [x] 5.1.3 Handle blocks not aligned to the current interval (snap display to nearest slot boundary; keep stored times authoritative). *(Note: round-half-up snapping, plus a row-collision fallback — two legally non-overlapping blocks that snap onto the same row are re-anchored to the next free row rather than one silently vanishing, a bug caught by `code-reviewer` and fixed before sign-off; see `docs/ARCHITECTURE.md`.)*
+- [x] **5.2 Grid views and templates**
+    - [x] 5.2.1 Create `GridView(LoginRequiredMixin, TemplateView)` at `planner/` that builds the grid context; embed it in the dashboard (or make dashboard delegate to it). *(Both `GridView` and `DashboardView` call the same `build_week_grid()`, mirroring Sprint 4's settings dual-access pattern — standalone at `/planner/` and embedded at `/dashboard/`, zero duplicated logic.)*
+    - [x] 5.2.2 Create `planner/grid.html`: `<table>` with sticky day-header row and sticky time column; iterate the matrix rendering `<td rowspan="...">` for block starts and skipping occupied cells. *(Deviation: the `<table>` itself lives in a shared `planner/partials/grid_table.html`, included by both `planner/grid.html` and `core/dashboard.html` — one table markup, not two copies, per NFR-05/R5.)*
+    - [x] 5.2.3 Create `planner/partials/block_cell.html`: block presentation (label, hex background, readable text color rule, hover controls container). *(Note: readable-text-color is a fixed `text-white` placeholder for now — the JS luminance rule is Sprint 7.2.2 scope; colorless blocks fall back to `bg-slate-500`/`dark:bg-slate-600`, a token not yet in PRD §9.1, chosen and verified for WCAG AA contrast — see `docs/ARCHITECTURE.md`.)*
+    - [x] 5.2.4 Create `planner/partials/empty_cell.html`: clickable empty slot carrying `data-day`, `data-start`, `data-end` attributes.
+    - [x] 5.2.5 Responsive behavior: horizontal scroll wrapper for narrow screens; verify dark mode borders/contrast. *(Note: also bounded to `max-h-[75vh]` with its own `overflow-y-auto`, so the grid's sticky header/column stick to the table's own scroll container rather than fighting the navbar's sticky header — real-browser confirmation still pending Playwright MCP setup, see gaps section.)*
+- [x] **5.3 Seed and verify**
+    - [x] 5.3.1 Create a few blocks via admin; verify correct placement, rowspans, midnight-ending block, and both interval settings (30/60). *(Seeded via ORM for existing test user `alice`: a normal block, a midnight-ending block, and two single-hour blocks across three days; rowspans and placement verified at both 30- and 60-minute intervals, and via rendered-HTML inspection, not just the builder's own output.)*
 
 ### Sprint 6 — Block Interactivity (HTMX + Vanilla JS)
 

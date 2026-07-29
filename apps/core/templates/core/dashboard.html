@@ -66,17 +66,21 @@
     </div>
 
     {% comment %}
-    --- Empty state (PRD 3.2.2) ---
-    No TimeBlock model exists yet (Sprint 4) and no grid builder exists
-    yet (Sprint 5), so the dashboard has nothing real to render. This
-    card is the whole "shell": it is replaced by the actual grid table
-    once apps/planner/grid.py and planner/grid.html land.
+    --- Weekly grid (PRD 5.2.1) ---
+    Replaces the Sprint 3 placeholder empty-state card. Renders the same
+    `week_grid` (an `apps.planner.grid.WeekGrid`, built by
+    `apps.planner.grid.build_week_grid()`) through the same
+    planner/partials/grid_table.html partial the standalone `/planner/`
+    page (planner/grid.html) uses -- one shared table partial, not
+    duplicated markup (PRD §9, R5). No separate textual empty-state is
+    kept: an all-empty grid already reads as "nothing here yet" via its
+    inert, hoverable cells, and computing an `is_empty` flag here would
+    require either a new field on `WeekGrid` (out of this pass's scope --
+    django-frontend does not touch apps/planner/grid.py) or a nested
+    `{% for %}` scan across every row/day in this template, which is
+    exactly the logic-heavy DTL PRD R2 rules out.
     {% endcomment %}
-    <div class="mt-8 rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-        <h2 class="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Your weekly grid is empty</h2>
-        <p class="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
-            Once your planner grid is ready, you'll be able to click any time slot, type a label,
-            and build your week &mdash; no predefined categories, no rigid structure.
-        </p>
+    <div class="mt-8">
+        {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
     </div>
 {% endblock %}

@@ -1,0 +1,34 @@
+{% comment %}
+Renders one 'block-start' grid cell (PRD 5.2.3): the single
+`<td rowspan="...">` covering a `TimeBlock`'s full vertical span.
+Self-sufficient (no ancestor styling assumed) so it stays correct if a
+later sprint re-renders it standalone via an HTMX fragment swap.
+
+Usage, from a `{% for cell in row.cells %}` loop:
+    {% include 'planner/partials/block_cell.html' with cell=cell %}
+
+Background: uses the block's real hex color (`cell.block.color.hex_code`)
+via inline `style` when a color is assigned. When `cell.block.color` is
+null (PRD FR-13's SET_NULL-on-delete case), there is no hex to source a
+`style` from, so a plain neutral Tailwind fill is used instead
+(`bg-slate-500` / `dark:bg-slate-600` -- not the `slate-400` a literal
+reading of the design-token family might suggest, chosen instead because
+it is the lightest slate step that still holds >= 4.5:1 contrast against
+the `text-white` label in *light* mode; `slate-400` measures well under
+3:1 there. No token in PRD §9 covers this case yet -- flagged as a gap).
+
+Text color is a fixed `text-white` placeholder for now, matching the
+landing page's decorative grid mock (Sprint 3). The real JS-computed
+luminance-based contrast rule against arbitrary user hex values is
+Sprint 7.2.2 scope (`htmx-interaction`), not this template's.
+
+The inner <div> is a bare, unstyled wrapping element -- the future home
+for Sprint 6.5.2's hover edit/delete controls. No controls exist yet.
+{% endcomment %}
+<td
+    rowspan="{{ cell.rowspan }}"
+    class="rounded-md border border-slate-200 dark:border-slate-700 p-1 align-top text-xs font-medium text-white {% if not cell.block.color %}bg-slate-500 dark:bg-slate-600{% endif %}"
+    {% if cell.block.color %}style="background-color: {{ cell.block.color.hex_code }};"{% endif %}
+>
+    <div>{{ cell.block.label }}</div>
+</td>

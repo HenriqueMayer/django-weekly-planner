@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}My Week{% endblock %}
+
+{% block content %}
+    {% comment %}
+    Standalone weekly grid page (PRD 5.2.1/5.2.2), reachable at
+    `/planner/`. The table itself lives in one shared partial,
+    planner/partials/grid_table.html, also `{% include %}`-ed by
+    apps/core/templates/core/dashboard.html -- there is exactly one place
+    the `<table>` markup is written (PRD §9, R5). `week_grid` (an
+    `apps.planner.grid.WeekGrid`) is provided by `GridView`
+    (apps/planner/views.py).
+    {% endcomment %}
+    <div>
+        <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">My Week</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Your time-blocking grid, Monday through Sunday.</p>
+    </div>
+
+    <div class="mt-8">
+        {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
+    </div>
+{% endblock %}

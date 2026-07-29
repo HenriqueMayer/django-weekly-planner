@@ -12,14 +12,18 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 2 — Accounts (Native Authentication): complete.**
 **Sprint 3 — Landing Page & Dashboard Shell: complete.**
 **Sprint 4 — Planner Domain (Models, Signals, Admin, Settings): complete.**
+**Sprint 5 — Grid Rendering (Server-Side): complete.**
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
-(header, toolbar, empty state). The planner domain now exists: `BlockColor`, `PlannerSettings`,
-and `TimeBlock` models with full validation, a signal auto-creating each new user's settings, admin
-registration, and a live settings form reachable both standalone and as an inline dashboard-toolbar
-dropdown. There is still no functional grid yet (Sprint 5) and no block CRUD/HTMX interactivity
-(Sprint 6). See §13 in the PRD for the full sprint plan and checklist.
+(header, toolbar). The planner domain exists: `BlockColor`, `PlannerSettings`, and `TimeBlock`
+models with full validation, a signal auto-creating each new user's settings, admin registration,
+and a live settings form reachable both standalone and as an inline dashboard-toolbar dropdown.
+The dashboard now renders a real, server-computed weekly grid (`apps/planner/grid.py`) —
+Monday-Sunday columns, time-slot rows honoring the user's interval/range/format settings, and
+blocks placed with correct `rowspan`, including midnight-crossing and interval-misaligned blocks.
+There is still no block CRUD/HTMX interactivity yet (Sprint 6) — the grid is read-only,
+server-rendered HTML. See §13 in the PRD for the full sprint plan and checklist.
 
 ---
 
@@ -44,21 +48,28 @@ django-weekly-planner/
 │   │   ├── views.py          # LandingView, DashboardView (both plain TemplateView)
 │   │   ├── urls.py           # app_name = 'core'
 │   │   └── templates/core/   # landing.html (hero/features/grid-mock — Sprint 3),
-│   │                         # dashboard.html (header/toolbar/empty-state — Sprint 3)
+│   │                         # dashboard.html (header/toolbar/real grid — Sprint 3-5)
 │   ├── accounts/             # native auth — Sprint 2
 │   │   ├── forms.py           # SignUpForm, LoginForm (shared INPUT_CLASSES)
 │   │   ├── views.py           # SignUpView(CreateView)
 │   │   ├── urls.py            # app_name = 'accounts'; login/, signup/, logout/
 │   │   └── templates/accounts/  # login.html, signup.html
-│   └── planner/               # domain models, settings UI — Sprint 4; grid/CRUD — Sprint 5+
+│   └── planner/               # domain models/settings — Sprint 4; grid — Sprint 5; CRUD — Sprint 6+
 │       ├── models.py           # BlockColor, PlannerSettings, TimeBlock (all TimestampedModel)
+│       ├── grid.py             # build_week_grid() — pure-Python matrix builder (Sprint 5)
 │       ├── signals.py          # post_save on User -> auto-create PlannerSettings
 │       ├── apps.py             # PlannerConfig.ready() registers signals.py
 │       ├── admin.py            # all three models registered
 │       ├── forms.py            # PlannerSettingsForm (shared INPUT_CLASSES pattern)
-│       ├── views.py            # SettingsUpdateView(LoginRequiredMixin, UpdateView)
-│       ├── urls.py             # app_name = 'planner'; settings/
-│       └── templates/planner/  # settings_form.html (standalone page)
+│       ├── views.py            # SettingsUpdateView, GridView (both LoginRequiredMixin)
+│       ├── urls.py             # app_name = 'planner'; '' (grid), settings/
+│       └── templates/planner/
+│           ├── settings_form.html    # standalone settings page (Sprint 4)
+│           ├── grid.html             # standalone grid page (Sprint 5)
+│           └── partials/
+│               ├── grid_table.html    # shared <table>, included by grid.html + dashboard.html
+│               ├── block_cell.html    # block-start <td> presentation
+│               └── empty_cell.html    # empty, clickable <td>
 ├── templates/
 │   ├── base.html
 │   └── partials/
@@ -96,8 +107,10 @@ to the PRD's literal wording later.
 | PRD 3.2.1 / §9.3 list three toolbar placeholders: Settings, Palette, theme toggle | Dashboard toolbar (`apps/core/templates/core/dashboard.html`) has only two: Settings and Palette | The theme toggle already exists globally in the navbar (`templates/partials/navbar.html`, `#theme-toggle`, included via `base.html` on every screen). FR-14 only requires it be "available on all screens," which it already is — duplicating it in the toolbar would mean a second DOM element bound to the same class string and JS wiring, itself a small NFR-05/R5 risk (two toggles that could visually desync). Reviewed and accepted by `code-reviewer`. |
 | PRD 4.1.1: `BlockColor` uses `unique_together (user, name)` | **`Meta.constraints = [UniqueConstraint(fields=['user', 'name'], name='unique_block_color_name_per_user')]`** | Current Django 6.0 docs recommend `UniqueConstraint` over `unique_together` ("may eventually replace" it), confirmed via Context7. Identical DB-level uniqueness and `ValidationError` behavior via `full_clean()`; just the currently-recommended spelling. Reviewed and confirmed correct by `code-reviewer` (independently re-checked against the docs, not just trusting the claim). |
 | PRD 4.4.3: settings rendered as "a dropdown panel/card in the dashboard toolbar" | A no-JS **`<details>`/`<summary>`** dropdown (PRD §9.2's own documented "Menus/dropdowns" pattern), containing the real `PlannerSettingsForm`, posting as a plain (non-HTMX) `POST` to `planner:settings` | HTMX-driven interactivity is explicitly Sprint 6 scope; wiring an HTMX fragment swap here would pull that forward. A plain POST that redirects back to `core:dashboard` on success already satisfies 4.4.3's own wording ("on save, redirect ... to re-render the grid") without adding scope. `DashboardView` gained a small `get_context_data()` building the bound form — the one Python change needed to make the dropdown work; everything else is template-only. |
+| PRD 5.1.1: grid builder returns "a matrix of rows × 7 cells" | `build_week_grid()` returns typed dataclasses (`WeekGrid`/`GridRow`/`GridCell`), plus `out_of_range_blocks` and `unplaced_blocks` lists not named in the PRD | Same matrix shape and semantics, just attribute access instead of raw nested lists/dicts — friendlier for `{% for %}` template iteration (R2). The two extra lists are where PRD R3's "clamp/flag blocks... instead of deleting them" guidance concretely lives: a block can fail to render either because its stored time falls outside `[day_start, day_end)` (`out_of_range_blocks`) or because, after interval-snapping, no free row was left in its day's column (`unplaced_blocks`) — a distinct, rarer failure mode surfaced during `code-reviewer`'s pass (see below). Neither list is consumed by any template yet; the data just isn't silently lost. |
+| PRD 4.1.4's `get_rowspan(interval)` (Sprint 4) used floor division | Changed this sprint to **round-half-up**, via a new shared `round_half_up()` helper in `apps/planner/models.py` | `code-reviewer` caught that `get_rowspan()` (`90 // 60 == 1`) disagreed with `grid.py`'s own independent rowspan computation for the same block (`2`, via round-half-up) — the PRD's own 5.1.3 explicitly requires "snap display to nearest slot boundary," which floor division cannot produce. Fixed by extracting one shared `round_half_up()` function (alongside `minutes_since_midnight()`, this codebase's established single home for time-math helpers) and having both `get_rowspan()` and `grid.py` use it, so they can no longer disagree. `get_rowspan()` itself was not removed — it remains documented model API and Sprint 8.1.1's planned test target, just corrected. |
 
-Everything else in Sprints 1–4 follows the PRD as written.
+Everything else in Sprints 1–5 follows the PRD as written.
 
 ---
 
@@ -119,6 +132,17 @@ into one partial that renders either an `<a href>` or a `<button type="submit">`
 whether an `href` context variable is supplied; the long class string now exists exactly once.
 Same rationale as `form_field.html` in Sprint 2. Secondary/danger button strings are not yet
 extracted (still below the 3+ repetition threshold) — see Sprint 4 section below.
+
+**Colorless-block fallback (Sprint 5)**: a `TimeBlock` with no `color` (nullable, `SET_NULL` on
+delete per FR-13) has no hex value to source an inline `style` from. PRD §9.1's token table has no
+entry for this case, so `block_cell.html` falls back to a plain Tailwind fill: `bg-slate-500`
+(light) / `dark:bg-slate-600` (dark) — not the `slate-400` a literal reading of the existing slate
+family might suggest, chosen instead because it's the lightest slate step that still holds ≥ 4.5:1
+contrast against the fixed `text-white` block label in light mode (`slate-400` measures ~2.56:1,
+well under WCAG AA; `slate-500` measures ~4.76:1). `code-reviewer` verified this contrast math
+independently and flagged it as a good one-off but a good candidate for promotion to a named §9.1
+token once Sprint 6/7 need the same "neutral block" concept again (color picker's "no color"
+option, palette panel) — not done yet, single call site today.
 
 ---
 
@@ -252,21 +276,93 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Grid rendering (Sprint 5)
+
+- **`apps/planner/grid.py`**: `build_week_grid(planner_settings, blocks)` is the sole entry point,
+  and the only place the grid's row/column/rowspan matrix is computed (PRD R2 — "compute the grid
+  matrix server-side... templates only iterate, no logic-heavy DTL"). Pure Python: no database
+  query, no Django import beyond the `TimeBlock`/`minutes_since_midnight`/`round_half_up` it reuses
+  from `apps/planner/models.py`. Returns a `WeekGrid` dataclass: `day_headers` (7 names),
+  `rows` (each a time-slot `label` plus 7 `GridCell`s), and two "don't lose this" lists,
+  `out_of_range_blocks` and `unplaced_blocks` (see deviations table above for what each means).
+  Every `GridCell` is tagged `'empty'`, `'block-start'` (carries the `TimeBlock` and a `rowspan`),
+  or `'occupied'` (a row a block above already covers via `rowspan` — templates render nothing at
+  all for these, not an empty `<td>`, or every column to its right desyncs for the rest of that
+  row).
+- **Midnight-crossing and interval-misaligned blocks**: both reuse Sprint 4's centralized
+  `minutes_since_midnight()` helper (no reimplementation of the midnight rule) and a new shared
+  `round_half_up()` helper (also now in `models.py`) for snapping a block's display position to the
+  nearest slot boundary without ever mutating its stored `start_time`/`end_time` — the PRD's own
+  5.1.3 wording ("snap display to nearest slot boundary; keep stored times authoritative").
+- **Two bugs found by `code-reviewer` and fixed before sign-off, not shipped as first-written**:
+  1. Two legally non-overlapping blocks (e.g. two short blocks that touch exactly) could snap onto
+     the same visual row at a coarse interval; the first-written code silently dropped the second
+     one into an inert list, meaning it never rendered anywhere. Fixed: on a row collision,
+     `build_week_grid()` now searches forward for the next free row in that day's column,
+     re-anchors the block there (shrinking its rowspan only as needed), and flags it `clamped`.
+     Only a genuinely packed day (no free row left at all) falls back to the `unplaced_blocks` list.
+  2. A day range that isn't an exact multiple of `slot_interval` (nothing prevents a user from
+     setting e.g. `day_end = 23:45` at a 60-minute interval) silently truncated the trailing
+     partial slot via floor division, and blocks cut off by that truncation incorrectly reported
+     `clamped=False`. Fixed: slot count now rounds up (`math.ceil`) so the full configured range is
+     always representable, and the `clamped` flag now also accounts for this second clamping
+     mechanism, not just the day-range boundary one.
+  Both were caught because `code-reviewer` executed the code against constructed scenarios rather
+  than reading it, per this project's established review practice — see the qa-tester/code-reviewer
+  verification note below.
+- **`TimeBlock.get_rowspan(interval)` corrected** (Sprint 4 method, zero callers in the codebase):
+  changed from floor division to the same `round_half_up()` `grid.py` uses, so a 90-minute block at
+  a 60-minute interval now returns `2` from both, not `1` from one and `2` from the other. See
+  deviations table.
+- **Views**: `GridView(LoginRequiredMixin, TemplateView)` at `/planner/` (`planner:grid`), and
+  `DashboardView` (`apps/core/views.py`) both call the identical `build_week_grid()` with a
+  `request.user`-scoped `PlannerSettings`/`TimeBlock` queryset (`.select_related('color')`, NFR-03)
+  — no pk taken from any URL (NFR-07), and no duplicated grid-computation logic between the
+  standalone page and the embedded dashboard view, mirroring Sprint 4's settings dual-access
+  pattern.
+- **Templates**: the actual `<table>` markup exists in exactly one place,
+  `planner/partials/grid_table.html` (`table-fixed w-full border-collapse`, sticky day-header row
+  and sticky time column, per PRD §9.2's "Grid" bullet verbatim), included by both
+  `planner/grid.html` (standalone) and `core/dashboard.html` (embedded, replacing Sprint 3's
+  placeholder empty-state card — an all-empty grid's inert, hoverable cells already communicate
+  "nothing here yet" on their own). `planner/partials/block_cell.html` and `empty_cell.html` render
+  the two "real" cell kinds; `empty_cell.html` already carries `data-day`/`data-start`/`data-end`
+  attributes so Sprint 6 can wire `hx-get` straight off this markup without touching the template
+  again. No HTMX, no JS anywhere in this sprint's templates — pure server-rendered HTML, per scope.
+  The table is wrapped in its own bounded, scrollable container (`overflow-x-auto overflow-y-auto
+  max-h-[75vh]`) so its sticky header/column stick to that container's edges rather than
+  competing with the navbar's own `sticky top-0` once the page scrolls.
+- **Verification**: `qa-tester` independently recomputed grid math (aligned blocks, midnight
+  crossing, both interval settings, interval-misaligned snapping, day-range narrowing/clamping) via
+  direct calls to `build_week_grid()`, parsed real rendered HTML to confirm every table row's
+  column count is always consistent with active `rowspan`s, verified per-user isolation with a
+  second test user, confirmed the Sprint 4 settings dropdown still works end-to-end (posted a real
+  interval change and confirmed the re-rendered grid reflected it), and confirmed auth gating on
+  both `/planner/` and `/dashboard/`. `code-reviewer` then found and this session fixed the two
+  bugs described above, plus corrected `get_rowspan()`; all fixes were independently re-verified
+  (not just trusted) by re-reading the corrected `grid.py`/`models.py` and re-running the exact
+  regression scenarios, plus confirming the previously-seeded `alice` data rendered unchanged.
+  `manage.py check` and `makemigrations --check --dry-run` stayed clean throughout (no model field
+  changes this sprint).
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
-  not configured in this environment. Auth, landing/dashboard, and now the planner settings flows
-  were all verified via Django's test client (status codes, redirect targets, response body
-  assertions, DB-state checks) and every template's class strings were spot-checked against PRD §9,
-  but nothing has been rendered in a real browser — no visual layout, hover/focus states,
-  dark-mode flash, or responsive breakpoint check has been done. Two concrete, still-unconfirmed
-  layout questions are now stacked up: the auth pages' `min-h-screen` centered card possibly not
-  fitting one viewport (flagged in Sprint 3), and whether the new settings `<details>` dropdown's
-  `absolute`-positioned panel (`apps/core/templates/core/dashboard.html`) actually stays within the
-  viewport and doesn't get clipped/overlapped at narrow widths in a real browser, despite the
-  `w-[calc(100vw-2rem)] sm:w-80` sizing intended to prevent that. Run
-  `claude mcp add playwright -- npx @playwright/mcp@latest` before Sprint 5 — grid rendering and
-  drag-to-resize will be much harder to verify blind, and this gap is now two sprints deep.
+  not configured in this environment. Auth, landing/dashboard, planner settings, and now the grid
+  itself were all verified via Django's test client (status codes, redirect targets, response body
+  assertions, DB-state checks, and — new this sprint — actual HTML table-structure parsing) and
+  every template's class strings were spot-checked against PRD §9, but nothing has been rendered in
+  a real browser — no visual layout, hover/focus states, dark-mode flash, or responsive breakpoint
+  check has been done. Three concrete, still-unconfirmed layout questions are now stacked up: the
+  auth pages' `min-h-screen` centered card possibly not fitting one viewport (Sprint 3), the
+  settings `<details>` dropdown's `absolute`-positioned panel possibly clipping at narrow widths
+  (Sprint 4), and now whether a 18+ row grid table at `max-h-[75vh]` produces an awkward
+  nested-scrollbar experience (page scroll + inner vertical scroll + inner horizontal scroll all at
+  once) on a narrow viewport (Sprint 5). Run
+  `claude mcp add playwright -- npx @playwright/mcp@latest` **before Sprint 6** — drag-to-resize
+  (PRD 6.3) has no other realistic way to be verified, and this gap is now three sprints deep.
 - **No tests, no Docker.** Deliberately deferred to Sprints 8 and 9 per the PRD.
 
 ---

@@ -1,0 +1,21 @@
+{% comment %}
+Renders one 'empty' grid cell (PRD 5.2.4): a clickable, unoccupied
+time-slot. Self-sufficient (no ancestor styling assumed) so it renders
+correctly both inside `grid_table.html` and, later, when Sprint 6 swaps
+it back in standalone after a delete/cancel HTMX response.
+
+Usage, from a `{% for cell in row.cells %}` loop:
+    {% include 'planner/partials/empty_cell.html' with cell=cell %}
+
+No click handler or `hx-get` wiring yet -- that's Sprint 6.1.2's job.
+This only supplies the visual affordance (hover background, pointer
+cursor) plus the `data-day`/`data-start`/`data-end` attributes Sprint 6
+needs to build its `hx-get` request straight from this markup, without
+having to touch this template again.
+{% endcomment %}
+<td
+    data-day="{{ cell.day }}"
+    data-start="{{ cell.slot_start|time:'H:i' }}"
+    data-end="{{ cell.slot_end|time:'H:i' }}"
+    class="h-12 border border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-700/50 cursor-pointer"
+></td>

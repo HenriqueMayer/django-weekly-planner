@@ -1,0 +1,63 @@
+{% comment %}
+Renders the weekly time-blocking grid as a real HTML <table> (PRD §9.2
+"Grid": native `rowspan` support beats fighting CSS Grid for vertical
+block merges). Self-sufficient: its only input is `week_grid` (an
+`apps.planner.grid.WeekGrid`), so it renders identically wherever it's
+included -- the standalone page (`planner/grid.html`, PRD 5.2.2) and the
+dashboard (`core/dashboard.html`, PRD 5.2.1) both `{% include %}` this
+one partial rather than duplicating the table markup (PRD §9, R5).
+
+Usage:
+    {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
+
+Template contract (from apps/planner/grid.py -- load-bearing for valid
+HTML): a `'block-start'` cell renders exactly one `<td rowspan="...">`
+(via block_cell.html); an `'occupied'` cell renders nothing at all, not
+even an empty `<td>` -- the `rowspan` above already accounts for its
+row/column position, and an extra `<td>` here would desync every column
+to its right; an `'empty'` cell renders a normal clickable `<td>` (via
+empty_cell.html). The matrix from `build_week_grid()` is already fully
+resolved -- this template only iterates, per PRD R2.
+
+Day headers ('Monday', ...) are abbreviated to 3 letters for column
+width, matching the precedent set by the landing page's decorative grid
+mock (Sprint 3); the full name is kept on the `title` attribute for
+accessibility (NFR-06).
+
+Wrapped in its own bounded, scrollable container (`overflow-x-auto`, per
+NFR-04 -- same idiom as the landing page's grid mock -- plus
+`overflow-y-auto max-h-[75vh]`) so the sticky header row / sticky time
+column (`sticky top-0` / `sticky left-0`) stick to *this* container's
+edges rather than the page's. Without a bounded height, this table's own
+`sticky top-0` header would fight the navbar's own `sticky top-0`
+(templates/partials/navbar.html) for the same on-screen position once
+the page scrolls past the fold -- not a documented PRD concern, but a
+necessary consequence of giving both a sticky header at the same time.
+{% endcomment %}
+<div class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+    <table class="w-full table-fixed border-collapse text-xs sm:text-sm">
+        <thead>
+            <tr>
+                <th scope="col" class="sticky top-0 left-0 z-20 w-16 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 sm:w-20"></th>
+                {% for day in week_grid.day_headers %}
+                    <th scope="col" title="{{ day }}" class="sticky top-0 z-20 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ day|slice:':3' }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in week_grid.rows %}
+                <tr>
+                    <th scope="row" class="sticky left-0 z-10 border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ row.label }}</th>
+                    {% for cell in row.cells %}
+                        {% if cell.kind == 'block-start' %}
+                            {% include 'planner/partials/block_cell.html' with cell=cell %}
+                        {% elif cell.kind == 'empty' %}
+                            {% include 'planner/partials/empty_cell.html' with cell=cell %}
+                        {% endif %}
+                        {% comment %}kind == 'occupied' renders nothing -- the block-start cell's rowspan above already covers this row/column position.{% endcomment %}
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

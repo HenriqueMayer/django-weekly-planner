@@ -5,6 +5,7 @@ and overlap validation all live here so Sprint 8's model tests are cheap to
 write and templates/views stay free of layout or business logic.
 """
 
+import math
 from datetime import time
 
 from django.conf import settings
@@ -35,6 +36,22 @@ def minutes_since_midnight(value, treat_midnight_as_end_of_day=False):
     if treat_midnight_as_end_of_day and value == MIDNIGHT:
         return MINUTES_PER_DAY
     return value.hour * 60 + value.minute
+
+
+def round_half_up(value):
+    """Round a non-negative float to the nearest integer, ties rounding up.
+
+    Python's built-in `round()` uses banker's rounding (ties to even),
+    which can silently produce a different result than "snap to the
+    nearest slot boundary" expects when a value falls exactly halfway
+    between two integers (PRD 5.1.3). Round-half-up is the more
+    predictable, template-obvious behavior for this.
+
+    This is the single, centralized implementation shared by
+    `TimeBlock.get_rowspan()` and `apps.planner.grid.build_week_grid()`, so
+    both agree on how a block's duration snaps to slot rows.
+    """
+    return math.floor(value + 0.5)
 
 
 class BlockColor(TimestampedModel):
@@ -134,8 +151,15 @@ class TimeBlock(TimestampedModel):
         return end_minutes - start_minutes
 
     def get_rowspan(self, interval):
-        """Return how many `interval`-minute slots this block spans."""
-        return self.get_duration_minutes() // interval
+        """Return how many `interval`-minute slots this block spans.
+
+        Uses round-half-up (via the shared `round_half_up()` helper), not
+        floor division, so this agrees with `apps.planner.grid`'s own
+        rowspan computation for the same block (PRD 5.1.3's "snap display
+        to nearest slot boundary") -- e.g. a 90-minute block at a 60-minute
+        interval spans 2 rows, not 1.
+        """
+        return round_half_up(self.get_duration_minutes() / interval)
 
     def clean(self):
         super().clean()
