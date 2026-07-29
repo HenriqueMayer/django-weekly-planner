@@ -3,6 +3,151 @@
 {% block title %}Time-Blocking Routine Organizer{% endblock %}
 
 {% block content %}
-    <h1 class="text-3xl font-semibold tracking-tight">Time-Blocking Routine Organizer</h1>
-    <p class="mt-2 text-slate-600 dark:text-slate-400">Plan your week visually with a free-form, color-coded time-blocking grid.</p>
+    {% comment %}
+    --- Hero (PRD 3.1.1) ---
+    Gradient headline reuses the navbar brand's exact gradient-text
+    pattern (bg-gradient-to-r from-indigo-600 to-violet-600 ...
+    bg-clip-text text-transparent). CTAs are auth-aware: a logged-in
+    visitor sees a single "Go to dashboard" action instead of
+    Sign up / Log in, since `request.user` is already in context via
+    Django's built-in auth context processor -- no view changes needed.
+    {% endcomment %}
+    <section class="py-12 text-center sm:py-16 lg:py-24">
+        <h1 class="mx-auto max-w-3xl bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-4xl font-semibold tracking-tight text-transparent dark:from-indigo-500 dark:to-violet-500 sm:text-5xl lg:text-6xl">
+            Plan your week, your way.
+        </h1>
+        <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-400">
+            An Excel-style weekly grid for time-blocking your routine. Click any empty slot, type
+            anything &mdash; Work, Study, Gym &mdash; optionally pick a color, and resize or merge
+            blocks by dragging their edges. No fixed labels, no mandatory categories: just your
+            week, your way.
+        </p>
+        <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            {% if request.user.is_authenticated %}
+                <a
+                    href="{% url 'core:dashboard' %}"
+                    class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >Go to dashboard</a>
+            {% else %}
+                <a
+                    href="{% url 'accounts:signup' %}"
+                    class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >Sign up</a>
+                <a
+                    href="{% url 'accounts:login' %}"
+                    class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                >Log in</a>
+            {% endif %}
+        </div>
+    </section>
+
+    {% comment %}--- Features (PRD 3.1.2) ---{% endcomment %}
+    <section class="py-8 sm:py-12">
+        <h2 class="text-center text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+            Built around how you actually plan
+        </h2>
+        <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                <svg class="h-8 w-8 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Free-form blocks</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    Click any cell and type anything &mdash; there are no predefined categories or
+                    rigid event types to fight with.
+                </p>
+            </div>
+            <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                <svg class="h-8 w-8 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3"></path>
+                    <path d="M21 8h-3a2 2 0 0 1-2-2V3"></path>
+                    <path d="M3 16h3a2 2 0 0 1 2 2v3"></path>
+                    <path d="M16 21v-3a2 2 0 0 1 2-2h3"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Drag to merge</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    Resize a block by dragging its edge to span multiple consecutive time slots,
+                    just like merging cells in a spreadsheet.
+                </p>
+            </div>
+            <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                <svg class="h-8 w-8 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="13.5" cy="6.5" r="0.5"></circle>
+                    <circle cx="17.5" cy="10.5" r="0.5"></circle>
+                    <circle cx="8.5" cy="7.5" r="0.5"></circle>
+                    <circle cx="6.5" cy="12.5" r="0.5"></circle>
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Color-coding</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    Maintain your own color palette and assign a color to any block, so your week
+                    reads at a glance.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    {% comment %}
+    --- Visual grid mock (PRD 3.1.3) ---
+    Purely decorative: a hardcoded illustration of the real weekly grid
+    (rowspan-based vertical merges, day columns, time rows). No queryset,
+    no logic -- the functional grid ships in Sprint 5 from a
+    server-computed matrix (apps/planner/grid.py). Marked aria-hidden
+    since it conveys nothing beyond the paragraph above it. Decorative
+    block colors here use plain Tailwind background utilities rather
+    than inline hex styles, since there is no real BlockColor data to
+    source a hex value from yet.
+    {% endcomment %}
+    <section class="py-8 sm:py-12">
+        <div class="mx-auto max-w-2xl text-center">
+            <h2 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+                See your week at a glance
+            </h2>
+            <p class="mt-3 text-slate-600 dark:text-slate-400">
+                A simple grid where every block is exactly as long, and as colorful, as you want it
+                to be.
+            </p>
+        </div>
+        <div class="mx-auto mt-8 max-w-3xl overflow-x-auto">
+            <table class="w-full table-fixed border-collapse text-xs sm:text-sm" aria-hidden="true">
+                <thead>
+                    <tr>
+                        <th scope="col" class="w-16 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"></th>
+                        <th scope="col" class="border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">Mon</th>
+                        <th scope="col" class="border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">Tue</th>
+                        <th scope="col" class="border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">Wed</th>
+                        <th scope="col" class="border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">Thu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row" class="border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">07:00</th>
+                        <td rowspan="2" class="border border-slate-200 bg-indigo-500 p-1 align-top rounded-md text-xs font-medium text-white dark:border-slate-700">Gym</td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                        <td rowspan="3" class="border border-slate-200 bg-violet-500 p-1 align-top rounded-md text-xs font-medium text-white dark:border-slate-700">Deep Work</td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">08:00</th>
+                        <td class="border border-slate-200 bg-emerald-500 p-1 align-top rounded-md text-xs font-medium text-white dark:border-slate-700">Reading</td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">09:00</th>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                        <td class="border border-slate-200 bg-indigo-500 p-1 align-top rounded-md text-xs font-medium text-white dark:border-slate-700">Design</td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">10:00</th>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                        <td class="h-10 border border-slate-200 dark:border-slate-700 sm:h-12"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 {% endblock %}

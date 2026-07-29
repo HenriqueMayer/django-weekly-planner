@@ -29,10 +29,12 @@
                 >Sign up</a>
             {% endif %}
 
-            {# htmx-interaction (PRD 1.4.4) binds the click handler that toggles
-               the `dark` class on <html> and persists the choice to localStorage.
-               The sun/moon icons swap purely via the `dark:` variant — no JS
-               needed for the icon swap itself, only for the class toggle. #}
+            {% comment %}
+            htmx-interaction (PRD 1.4.4) binds the click handler that toggles
+            the `dark` class on <html> and persists the choice to localStorage.
+            The sun/moon icons swap purely via the `dark:` variant -- no JS
+            needed for the icon swap itself, only for the class toggle.
+            {% endcomment %}
             <button
                 type="button"
                 id="theme-toggle"

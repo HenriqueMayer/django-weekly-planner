@@ -3,6 +3,48 @@
 {% block title %}My Week{% endblock %}
 
 {% block content %}
-    <h1 class="text-3xl font-semibold tracking-tight">My Week</h1>
-    <p class="mt-2 text-slate-600 dark:text-slate-400">Your weekly time-blocking grid will live here.</p>
+    {% comment %}
+    --- Page header + toolbar (PRD 3.2.1) ---
+    Settings and Palette are inert placeholders: their views/URLs don't
+    exist until Sprint 4 (settings) and Sprint 7 (palette), so they are
+    plain disabled <button> elements rather than links that would 404.
+    The theme toggle already lives in the navbar (templates/partials/
+    navbar.html, #theme-toggle) and is intentionally not duplicated
+    here -- FR-14 only asks for it to be available on every screen.
+    {% endcomment %}
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">My Week</h1>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Your time-blocking grid, Monday through Sunday.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button
+                type="button"
+                disabled
+                title="Grid settings — coming soon"
+                class="cursor-not-allowed rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 opacity-50 dark:border-slate-600 dark:text-slate-200"
+            >Settings</button>
+            <button
+                type="button"
+                disabled
+                title="Color palette — coming soon"
+                class="cursor-not-allowed rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 opacity-50 dark:border-slate-600 dark:text-slate-200"
+            >Palette</button>
+        </div>
+    </div>
+
+    {% comment %}
+    --- Empty state (PRD 3.2.2) ---
+    No TimeBlock model exists yet (Sprint 4) and no grid builder exists
+    yet (Sprint 5), so the dashboard has nothing real to render. This
+    card is the whole "shell": it is replaced by the actual grid table
+    once apps/planner/grid.py and planner/grid.html land.
+    {% endcomment %}
+    <div class="mt-8 rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+        <h2 class="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Your weekly grid is empty</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
+            Once your planner grid is ready, you'll be able to click any time slot, type a label,
+            and build your week &mdash; no predefined categories, no rigid structure.
+        </p>
+    </div>
 {% endblock %}

@@ -423,16 +423,16 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 3 — Landing Page & Dashboard Shell
 
-- [ ] **3.1 Landing page content**
-    - [ ] 3.1.1 Hero section: gradient headline, one-paragraph pitch, primary CTA (Sign up) + secondary CTA (Log in).
-    - [ ] 3.1.2 Features section: three cards (free-form blocks, drag-to-merge, color-coding) using the shared card pattern.
-    - [ ] 3.1.3 Visual grid mock section: static styled mini-grid illustrating the product (pure HTML/Tailwind, no logic).
-    - [ ] 3.1.4 Responsive pass: stack sections on mobile; verify dark mode.
-- [ ] **3.2 Dashboard shell**
-    - [ ] 3.2.1 Dashboard layout: page header ('My Week'), toolbar row with placeholders for Settings, Palette, and theme toggle.
-    - [ ] 3.2.2 Empty-state message when no grid data yet (pre-planner), styled as a card.
-- [ ] **3.3 Consistency pass**
-    - [ ] 3.3.1 Audit all existing screens against Section 9 tokens (buttons, inputs, cards, spacing); fix drift.
+- [x] **3.1 Landing page content**
+    - [x] 3.1.1 Hero section: gradient headline, one-paragraph pitch, primary CTA (Sign up) + secondary CTA (Log in). *(Also auth-aware: a logged-in visitor sees a single "Go to dashboard" CTA instead, via `request.user` from Django's built-in context processor — no view changes.)*
+    - [x] 3.1.2 Features section: three cards (free-form blocks, drag-to-merge, color-coding) using the shared card pattern.
+    - [x] 3.1.3 Visual grid mock section: static styled mini-grid illustrating the product (pure HTML/Tailwind, no logic).
+    - [x] 3.1.4 Responsive pass: stack sections on mobile; verify dark mode. *(Class-level responsive/dark-mode audit done; real-browser confirmation still deferred to `qa-tester` pending Playwright MCP setup — see `docs/ARCHITECTURE.md`.)*
+- [x] **3.2 Dashboard shell**
+    - [x] 3.2.1 Dashboard layout: page header ('My Week'), toolbar row with placeholders for Settings, Palette, and theme toggle. *(Deviation: toolbar has Settings + Palette placeholders only; the theme toggle is intentionally not duplicated here since it already exists globally in the navbar and FR-14 only requires it be "available on all screens" — see `docs/ARCHITECTURE.md`.)*
+    - [x] 3.2.2 Empty-state message when no grid data yet (pre-planner), styled as a card.
+- [x] **3.3 Consistency pass**
+    - [x] 3.3.1 Audit all existing screens against Section 9 tokens (buttons, inputs, cards, spacing); fix drift. *(No drift found — all six screens verbatim-match §9.2. Surfaced and fixed a real pre-existing bug instead: multi-line `{# #}` DTL comments in `base.html`/`navbar.html` don't span newlines and were leaking literal text into every page's HTML since Sprint 1/2; converted to `{% comment %}` blocks — see `docs/ARCHITECTURE.md`.)*
 
 ### Sprint 4 — Planner Domain (Models, Signals, Admin, Settings)
 

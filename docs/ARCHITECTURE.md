@@ -10,10 +10,12 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 
 **Sprint 1 — Project Foundation & Design System Base: complete.**
 **Sprint 2 — Accounts (Native Authentication): complete.**
+**Sprint 3 — Landing Page & Dashboard Shell: complete.**
 
-The project boots, has a Tailwind v4 design-system base, and now has full native auth: signup,
-login, logout, all styled and wired to the navbar. There is still no domain model (Sprint 4) and
-no grid yet (Sprint 5). See §13 in the PRD for the full sprint plan and checklist.
+The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
+logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
+(header, toolbar placeholders, empty state). There is still no domain model (Sprint 4) and no
+functional grid yet (Sprint 5). See §13 in the PRD for the full sprint plan and checklist.
 
 ---
 
@@ -35,9 +37,10 @@ django-weekly-planner/
 ├── apps/
 │   ├── core/                # landing, dashboard shell, TimestampedModel
 │   │   ├── models.py         # abstract TimestampedModel
-│   │   ├── views.py          # LandingView, DashboardView
+│   │   ├── views.py          # LandingView, DashboardView (both plain TemplateView)
 │   │   ├── urls.py           # app_name = 'core'
-│   │   └── templates/core/   # landing.html, dashboard.html
+│   │   └── templates/core/   # landing.html (hero/features/grid-mock — Sprint 3),
+│   │                         # dashboard.html (header/toolbar/empty-state — Sprint 3)
 │   ├── accounts/             # native auth — Sprint 2
 │   │   ├── forms.py           # SignUpForm, LoginForm (shared INPUT_CLASSES)
 │   │   ├── views.py           # SignUpView(CreateView)
@@ -76,8 +79,9 @@ to the PRD's literal wording later.
 | Tailwind v3 (`@tailwind` directives, `tailwind.config.js`, `darkMode: 'class'`) | **Tailwind v4**, CSS-first config in `static/css/input.css`: `@import 'tailwindcss'`, `@custom-variant dark (&:where(.dark, .dark *));`, `@source '../../templates'` / `@source '../../apps'` | Tailwind v4 removed the JS config file and `@tailwind` directives entirely; there is no v3 CLI to fall back to. Confirmed against current Tailwind docs. |
 | `LOGIN_REDIRECT_URL = 'dashboard'`, `LOGOUT_REDIRECT_URL = 'landing'` (bare names) | **Namespaced**: `LOGIN_URL = 'accounts:login'`, `LOGIN_REDIRECT_URL = 'core:dashboard'`, `LOGOUT_REDIRECT_URL = 'core:landing'` | This project namespaces every app's URLs (`app_name = 'core'` / `'accounts'`, set in Sprint 1/2). The PRD's bare names would fail to resolve; the namespaced form is the same intent, correctly expressed for this project's URLconf. |
 | PRD 2.3.1 implies `LoginView`'s default form is already styled | Added `LoginForm(AuthenticationForm)` in `apps/accounts/forms.py`, sharing the `INPUT_CLASSES` constant with `SignUpForm`, wired via `LoginView.as_view(authentication_form=LoginForm)` | `LoginView` uses Django's default `AuthenticationForm` unless told otherwise — left alone, its inputs would render unstyled while `SignUpForm`'s were styled. Not a scope addition, just the necessary plumbing for 2.3.1 to actually hold. |
+| PRD 3.2.1 / §9.3 list three toolbar placeholders: Settings, Palette, theme toggle | Dashboard toolbar (`apps/core/templates/core/dashboard.html`) has only two: Settings and Palette | The theme toggle already exists globally in the navbar (`templates/partials/navbar.html`, `#theme-toggle`, included via `base.html` on every screen). FR-14 only requires it be "available on all screens," which it already is — duplicating it in the toolbar would mean a second DOM element bound to the same class string and JS wiring, itself a small NFR-05/R5 risk (two toggles that could visually desync). Reviewed and accepted by `code-reviewer`. |
 
-Everything else in Sprints 1–2 follows the PRD as written.
+Everything else in Sprints 1–3 follows the PRD as written.
 
 ---
 
@@ -129,15 +133,57 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Landing page & dashboard shell (Sprint 3)
+
+- **`core/landing.html`**: hero section (gradient headline reusing the navbar brand's exact
+  gradient-text pattern, one-paragraph pitch, primary/secondary CTAs), a three-card features
+  section (free-form blocks, drag-to-merge, color-coding — the shared §9.2 card pattern), and a
+  decorative visual grid mock. The hero's CTAs are auth-aware: `{% if request.user.is_authenticated %}`
+  swaps Sign up/Log in for a single "Go to dashboard" link, using `request.user` from Django's
+  built-in auth context processor — no view changes needed, `LandingView` stays a plain
+  `TemplateView`.
+- **Grid mock is intentionally static**: a hand-written `<table>` with hardcoded `rowspan` values
+  and flat Tailwind background utilities (`bg-indigo-500`, etc., not inline hex) standing in for
+  real block colors, since no `BlockColor`/`TimeBlock` model exists yet (Sprint 4/5). No
+  `{% for %}`, no computed spans — nothing here anticipates the Sprint 5 grid-builder service, per
+  NFR-01 and risk R2. Marked `aria-hidden="true"` on the `<table>` root since it's purely
+  illustrative and the adjacent heading/paragraph already carry the real content.
+- **`core/dashboard.html`**: page header ("My Week") plus a toolbar with two disabled placeholder
+  buttons (Settings, Palette — `disabled`, `cursor-not-allowed`, no `href`/URL, since those views
+  don't exist until Sprint 4/7 and a real link would 404), and an empty-state card explaining the
+  grid will populate once the planner domain lands. See the deviations table above for why the
+  toolbar has two placeholders, not three.
+- **Bug found and fixed while building this sprint**: `templates/base.html` and
+  `templates/partials/navbar.html` each had a `{# ... #}` Django template comment spanning
+  multiple lines. Per Django's docs, `{# #}` does **not** support newlines — when it spans one,
+  the tokenizer fails to treat it as a comment and the literal text leaks straight into the
+  rendered HTML. This had been present since Sprint 1/2 and affected every screen in the app, not
+  just the two built this sprint. Fixed by converting both to `{% comment %}...{% endcomment %}`
+  blocks (Django's documented mechanism for multi-line comments), confirmed via Context7 against
+  the Django 6.0 docs. Re-swept every template afterward (`code-reviewer`, independently) — no
+  other multi-line `{# #}` instances remain anywhere in `templates/` or `apps/*/templates/`.
+- **Verification**: `qa-tester`'s 3.3.1 consistency pass diffed every class string across all six
+  screens (landing anon/auth, dashboard anon/auth, login, signup) against PRD §9.2 verbatim — no
+  drift found. A Django test-client sweep of the same six screens confirmed correct status codes,
+  the signup→auto-login→dashboard redirect chain, and no template-syntax leaks (`{%`, `{{`, `{#`)
+  in any rendered response. `code-reviewer` independently re-checked the same class strings and
+  found no blocking issues. Real-browser visual/responsive/dark-mode verification remains
+  deferred — see the Playwright gap below.
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
-  not configured in this environment. Auth flows were verified via Django's test client (status
-  codes, redirect targets, response body assertions) and template source was spot-checked against
-  PRD §9, but nothing has been rendered in a real browser — no visual layout, hover/focus states,
-  dark-mode flash, or responsive check has been done. Run
-  `claude mcp add playwright -- npx @playwright/mcp@latest` if browser verification is wanted before
-  Sprint 3.
+  not configured in this environment. Auth and landing/dashboard flows were verified via Django's
+  test client (status codes, redirect targets, response body assertions) and every template's
+  class strings were spot-checked against PRD §9, but nothing has been rendered in a real browser
+  — no visual layout, hover/focus states, dark-mode flash, or responsive breakpoint check has been
+  done. This is a growing gap: Sprint 3 specifically flagged one plausible layout issue that can't
+  be confirmed without a browser (the auth pages' `min-h-screen` centered card, stacked under the
+  navbar inside `base.html`'s `<main>`, may render taller than one viewport and not actually
+  center in the visible area). Run `claude mcp add playwright -- npx @playwright/mcp@latest` before
+  Sprint 4/5 — grid rendering and drag-to-resize will be much harder to verify blind.
 - **No tests, no Docker.** Deliberately deferred to Sprints 8 and 9 per the PRD.
 
 ---

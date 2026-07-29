@@ -1,14 +1,16 @@
 {% load static %}
 <!DOCTYPE html>
-{# The `dark` class on <html> is the hook Tailwind's `@custom-variant dark`
-   (static/css/input.css) reacts to. static/js/theme.js (PRD 1.4.4,
-   owned by htmx-interaction) is responsible for:
-     1. an inline, synchronous snippet in <head> (before this stylesheet
-        paints) that reads localStorage and adds the `dark` class here to
-        avoid a flash of the wrong theme, and
-     2. the click handler on #theme-toggle (templates/partials/navbar.html)
-        that toggles the class and persists the choice.
-   This template only provides the empty class attribute hook. #}
+{% comment %}
+The `dark` class on <html> is the hook Tailwind's `@custom-variant dark`
+(static/css/input.css) reacts to. static/js/theme.js (PRD 1.4.4,
+owned by htmx-interaction) is responsible for:
+  1. an inline, synchronous snippet in <head> (before this stylesheet
+     paints) that reads localStorage and adds the `dark` class here to
+     avoid a flash of the wrong theme, and
+  2. the click handler on #theme-toggle (templates/partials/navbar.html)
+     that toggles the class and persists the choice.
+This template only provides the empty class attribute hook.
+{% endcomment %}
 <html lang="en" class="">
 <head>
     <meta charset="utf-8">
