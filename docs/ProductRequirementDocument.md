@@ -407,19 +407,19 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 2 — Accounts (Native Authentication)
 
-- [ ] **2.1 Auth configuration**
-    - [ ] 2.1.1 Set `LOGIN_URL`, `LOGIN_REDIRECT_URL = 'dashboard'`, `LOGOUT_REDIRECT_URL = 'landing'` in settings.
-    - [ ] 2.1.2 Create `apps/accounts/urls.py` wiring `LoginView` (custom template) and `LogoutView`; include under `'accounts/'`.
-- [ ] **2.2 Signup flow**
-    - [ ] 2.2.1 Create `apps/accounts/forms.py` with `SignUpForm(UserCreationForm)` applying Tailwind widget classes in `__init__`.
-    - [ ] 2.2.2 Create `SignUpView(CreateView)` in `apps/accounts/views.py`: uses `SignUpForm`, logs the user in on success (`form_valid`), redirects to dashboard.
-    - [ ] 2.2.3 Route `'accounts/signup/'` to `SignUpView`.
-- [ ] **2.3 Auth templates (design system)**
-    - [ ] 2.3.1 Build `accounts/login.html`: centered card, styled inputs, error rendering, links to signup.
-    - [ ] 2.3.2 Build `accounts/signup.html`: same card pattern, field help texts styled subtly, link to login.
-    - [ ] 2.3.3 Update navbar to reflect auth state correctly on all pages.
-- [ ] **2.4 Manual smoke test**
-    - [ ] 2.4.1 Verify: signup → auto-login → dashboard; logout → landing; login with wrong password shows error; `/dashboard/` redirects anonymous users to login.
+- [x] **2.1 Auth configuration**
+    - [x] 2.1.1 Set `LOGIN_URL`, `LOGIN_REDIRECT_URL = 'dashboard'`, `LOGOUT_REDIRECT_URL = 'landing'` in settings. *(Deviation: namespaced values `accounts:login` / `core:dashboard` / `core:landing`, matching this project's `apps.<name>` URL-namespacing convention — see `docs/ARCHITECTURE.md`.)*
+    - [x] 2.1.2 Create `apps/accounts/urls.py` wiring `LoginView` (custom template) and `LogoutView`; include under `'accounts/'`.
+- [x] **2.2 Signup flow**
+    - [x] 2.2.1 Create `apps/accounts/forms.py` with `SignUpForm(UserCreationForm)` applying Tailwind widget classes in `__init__`.
+    - [x] 2.2.2 Create `SignUpView(CreateView)` in `apps/accounts/views.py`: uses `SignUpForm`, logs the user in on success (`form_valid`), redirects to dashboard.
+    - [x] 2.2.3 Route `'accounts/signup/'` to `SignUpView`.
+- [x] **2.3 Auth templates (design system)**
+    - [x] 2.3.1 Build `accounts/login.html`: centered card, styled inputs, error rendering, links to signup. *(Also added `LoginForm(AuthenticationForm)` so the default login form's inputs get the same Tailwind classes `SignUpForm` gets — not in the PRD's literal task list but required for 2.3.1's "styled inputs" to actually hold, since `LoginView` uses `AuthenticationForm` by default.)*
+    - [x] 2.3.2 Build `accounts/signup.html`: same card pattern, field help texts styled subtly, link to login.
+    - [x] 2.3.3 Update navbar to reflect auth state correctly on all pages. *(Verified — `navbar.html` from Sprint 1 already branched correctly; no changes needed.)*
+- [x] **2.4 Manual smoke test**
+    - [x] 2.4.1 Verify: signup → auto-login → dashboard; logout → landing; login with wrong password shows error; `/dashboard/` redirects anonymous users to login. *(Verified via Django test client, all 4 checks pass; real-browser confirmation still deferred to `qa-tester` pending Playwright MCP setup — see `docs/ARCHITECTURE.md`.)*
 
 ### Sprint 3 — Landing Page & Dashboard Shell
 

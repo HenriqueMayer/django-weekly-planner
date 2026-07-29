@@ -1,0 +1,23 @@
+{% comment %}
+Renders a single bound Django form field per the PRD §9.2 form pattern:
+label -> widget -> help text -> field errors. Self-sufficient (no ancestor
+styling assumed), so it is safe both in full-page renders and standalone
+HTMX fragment swaps.
+
+Usage, inside a `{% for field in form %}` loop:
+    {% include 'partials/form_field.html' with field=field %}
+
+Widget classes themselves are NOT set here — they come from the form's
+`__init__` (django-backend), matching PRD §9.2's input pattern. This
+partial only supplies the surrounding label/help/error chrome.
+{% endcomment %}
+<div>
+    <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ field.label }}</label>
+    <div class="mt-1">{{ field }}</div>
+    {% if field.help_text %}
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ field.help_text }}</p>
+    {% endif %}
+    {% for error in field.errors %}
+        <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+    {% endfor %}
+</div>

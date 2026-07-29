@@ -84,10 +84,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Authentication
 # https://docs.djangoproject.com/en/6.0/topics/auth/default/#django.contrib.auth.mixins.LoginRequiredMixin
-# Points at the accounts app's login route (Sprint 2). The URL name does not
-# need to resolve yet: Django only evaluates LOGIN_URL lazily, when an
-# unauthenticated user is actually redirected.
+# Namespaced URL names (not the bare 'dashboard'/'landing' names in the PRD
+# text) because every app in this project registers an app_name (PRD 8.1's
+# 'apps/' namespace convention; see docs/ARCHITECTURE.md).
 LOGIN_URL = 'accounts:login'
+LOGIN_REDIRECT_URL = 'core:dashboard'
+LOGOUT_REDIRECT_URL = 'core:landing'
 
 
 # Database
