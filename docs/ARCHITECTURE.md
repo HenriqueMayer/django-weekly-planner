@@ -37,8 +37,10 @@ project has a real, permanent automated test suite (82 tests: models, views, and
 grid builder) that passes clean from a fresh clone with no ordering dependencies — and now also
 runs identically inside a Docker container. The project can now be built and run with
 `docker compose up` alone (SQLite persisted in a named volume, static files served by WhiteNoise,
-no separate nginx), and has a rewritten `README.md`, a new `CONTRIBUTING.md`, and an MIT
-`LICENSE`, making it ready to serve as a public open-source template — everything except actually
+no separate nginx), and has a rewritten `README.md`, a new `CONTRIBUTING.md`, and a `LICENSE`
+(PolyForm Noncommercial 1.0.0 — personal use only, selling not permitted, a deliberate deviation
+from the PRD's "open-source" framing, see below), making it ready to serve as a public,
+source-available template — everything except actually
 tagging and publishing it (9.3.2), which is withheld this session by explicit instruction. See
 §13 in the PRD for the full sprint plan and checklist.
 
@@ -61,7 +63,7 @@ django-weekly-planner/
 ├── docker-compose.yml      # Sprint 9: one `web` service, sqlite_data volume, optional env_file
 ├── .dockerignore           # Sprint 9
 ├── CONTRIBUTING.md         # Sprint 9: add-an-app / swap tokens / grid defaults / SQLite limits
-├── LICENSE                 # Sprint 9: MIT
+├── LICENSE                 # Sprint 9: PolyForm Noncommercial 1.0.0 (personal use only, no selling)
 ├── assets/
 │   └── preview.svg         # pre-existing concept sketch, embedded in README (Sprint 9)
 ├── config/                 # settings package (see "Deviations" below)
@@ -652,6 +654,20 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
   `<details>` into the HTML living standard's native exclusive-accordion behavior (no JS). Neither
   fix is browser-confirmed — see the Playwright gap below, now materially relevant to two more
   concrete, previously-nonexistent UI elements.
+- **Real bug found via a real browser screenshot, post-Sprint-9, and fixed**: the user opened the
+  Settings dropdown and reported (screenshot) the grid's sticky day-header row ("Sat"/"Sun")
+  visibly painting on top of the "Grid settings" panel instead of behind it. Root cause: both the
+  Settings/Palette dropdown panels (`apps/core/templates/core/dashboard.html`) and the grid's
+  sticky header `<th>` cells (`apps/planner/templates/planner/partials/grid_table.html`) used the
+  identical `z-20`; neither the `<details>` nor the shared toolbar row wrapper establishes its own
+  stacking context (`relative` alone, no `z-index`), so the two `z-20` layers competed directly in
+  the same stacking context and — being later in the DOM — the grid table won every tie. Fixed by
+  bumping both dropdown panels to `z-30`, matching this codebase's existing higher layer already
+  used by `block_form.html`'s identical floating-popover pattern (the project's de facto z-index
+  scale, confirmed by grepping every `z-\d+` usage in the codebase: `10` grid sticky column <
+  `20` grid sticky header < `30` floating panels/popovers < `40` navbar). This is the first item
+  in the Playwright gap's running list below to go from "hand-reasoned, unconfirmed" to "confirmed
+  broken, then fixed" via an actual rendered screenshot rather than continued speculation.
 - **`ruff` added as a dev-only lint tool** (PRD 7.3.1): `uv add --dev ruff`, keeping it out of the
   runtime `dependencies` list entirely (the KPI's "≤5 entries" budget is about runtime deps, and
   stays untouched). `[tool.ruff]`/`[tool.ruff.lint]` config in `pyproject.toml` (E/F/W/I,
@@ -841,12 +857,22 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
   the already-extracted shared partials) versus the unrelated *per-user* `BlockColor` runtime
   palette feature, how to change `PlannerSettings`' per-field defaults for new users, and how to
   swap SQLite for another engine (no code depends on SQLite specifically; every query goes through
-  the ORM). `LICENSE` is MIT — PRD 9.2.3 only specifies "open-source," so this is a reasonable,
-  easily-changed-later default for a template meant to be maximally reusable, not a considered
-  legal decision. The pre-existing `assets/preview.svg` (a hand-drawn concept sketch, not app
-  output) is now embedded in the README, explicitly labeled as a concept sketch rather than a live
-  screenshot, since no browser-screenshot tooling exists in this environment (same root cause as
-  the Playwright gap below).
+  the ORM). The pre-existing `assets/preview.svg` (a hand-drawn concept sketch, not app output) is
+  now embedded in the README, explicitly labeled as a concept sketch rather than a live screenshot,
+  since no browser-screenshot tooling exists in this environment (same root cause as the
+  Playwright gap below).
+- **`LICENSE` changed from MIT to the PolyForm Noncommercial License 1.0.0**, per explicit user
+  instruction after this sprint's initial sign-off: personal/noncommercial use is permitted,
+  selling the software or any commercial use is not. Full, unmodified license text (fetched
+  verbatim from the license's own canonical source, `github.com/polyformproject/polyform-licenses`
+  at the `1.0.0` tag, rather than reproduced from memory) plus a copyright/`Required Notice:` line
+  per the license's own "Notices" section. **Deviation from PRD §1/§5/9.2.3's framing**: the PRD
+  repeatedly describes the end goal as an "open-source template" (US-5.2's acceptance criteria,
+  9.2.3's task wording), but PolyForm Noncommercial is a *source-available*, not an OSI-approved
+  open-source license — it explicitly forbids commercial use, which the Open Source Definition
+  does not allow a license to do. This is a deliberate, user-directed choice overriding the PRD's
+  literal "open-source" wording, not an oversight; anyone reusing this project's docs/marketing
+  copy going forward should say "source-available, personal use" rather than "open-source."
 - **9.3.2 (tag `v1.0.0`, publish) intentionally not done**: requires `git tag`/`git push`, and this
   entire session operates under a hard standing "never commit or push" instruction. This is the
   one remaining PRD checklist item, withheld pending explicit user authorization — not an

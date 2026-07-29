@@ -1,4 +1,4 @@
-# django-weekly-planner
+# Django Weekly Planner - Template
 
 A modular, time-blocking weekly planner template built with Python, Django, and CSS Grid. Organize your routine like a spreadsheet.
 
@@ -170,4 +170,4 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new app, swap the colo
 
 ## License
 
-[MIT](LICENSE).
+[PolyForm Noncommercial License 1.0.0](LICENSE) — free for personal, noncommercial use (studying it, running it for yourself, adapting it for a hobby project). Selling this software, or using it for any commercial purpose, is not permitted.
