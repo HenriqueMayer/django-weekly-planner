@@ -6,7 +6,7 @@
 
 <img src="assets/ForTheReadme/preview.svg" width="480" alt="Original concept sketch">
 
-The napkin sketch this was built from, before any code existed — day columns, time-slot rows, free-form colored blocks. Kind of nice to see it turn into everything above.
+The napkin sketch this was built from, before any code existed — day columns, time-slot rows, free-form colored blocks. Kind of nice to see it turn into everything below.
 </details>
 
 ***
