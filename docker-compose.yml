@@ -2,10 +2,10 @@ services:
   web:
     build: .
     # Host port 8000 is already used by a local `runserver` process in this
-    # dev environment, so the container is published on 8010 instead
+    # dev environment, so the container is published on 2000 instead
     # (verified free via `ss -tln` before choosing it).
     ports:
-      - '8010:8000'
+      - '2000:8000'
     env_file:
       # A fresh clone has no `.env` until `cp .env.example .env` is run (see
       # README). `required: false` (Compose Spec env_file long syntax) lets

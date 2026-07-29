@@ -831,7 +831,7 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
   Dockerfile sets `SQLITE_DB_PATH=/app/data/db.sqlite3`. Persistence (a user survives
   `docker compose down` → `up`, without `-v`) was verified end-to-end, independently, three
   separate times (implementing agent, this session, `code-reviewer`).
-- **`docker-compose.yml`**: one `web` service (`build: .`), host port **8010** (8000 was already
+- **`docker-compose.yml`**: one `web` service (`build: .`), host port **2000** (8000 was already
   occupied locally by a dev `runserver` — verified free before choosing it; change it in this file
   if 8000 is free on your machine), `env_file: - path: .env / required: false` (the Compose
   long-form syntax that lets `docker compose up` still work on a fresh clone with no `.env` yet,
@@ -877,10 +877,16 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
   the already-extracted shared partials) versus the unrelated *per-user* `BlockColor` runtime
   palette feature, how to change `PlannerSettings`' per-field defaults for new users, and how to
   swap SQLite for another engine (no code depends on SQLite specifically; every query goes through
-  the ORM). The pre-existing `assets/preview.svg` (a hand-drawn concept sketch, not app output) is
-  now embedded in the README, explicitly labeled as a concept sketch rather than a live screenshot,
-  since no browser-screenshot tooling exists in this environment (same root cause as the
-  Playwright gap below).
+  the ORM). The pre-existing `assets/preview.svg` (a hand-drawn concept sketch, not app output) was
+  originally embedded in the README, explicitly labeled as a concept sketch rather than a live
+  screenshot, since no browser-screenshot tooling existed in this environment (same root cause as
+  the Playwright gap below).
+  **Update, post-Sprint-10:** the user supplied real, hand-captured screenshots and sample export
+  files, moved into `assets/ForTheReadme/` alongside the pre-existing sketch. The README was
+  rewritten around these — landing page (light/dark via a `<picture>`/`prefers-color-scheme`
+  toggle), the dashboard grid empty and populated, the block create/edit form, the color palette
+  panel, and a real Markdown/SVG/PNG export sample — replacing the concept-sketch-only hero with
+  actual app output for the first time.
 - **`LICENSE` changed from MIT to the PolyForm Noncommercial License 1.0.0**, per explicit user
   instruction after this sprint's initial sign-off: personal/noncommercial use is permitted,
   selling the software or any commercial use is not. Full, unmodified license text (fetched
@@ -1017,27 +1023,29 @@ throughout — `pyproject.toml`/`uv.lock` are completely untouched by this featu
 
 ## Known, expected gaps
 
-- **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
-  not configured in this environment. Auth, landing/dashboard, planner settings, the read-only
-  grid, every block-interactivity flow, every palette CRUD flow, and now the containerized
-  deployment have all been verified via Django's test client or direct HTTP requests (status
-  codes, redirect targets, response headers including `HX-Retarget`/`HX-Reswap`, response body
-  assertions, DB-state checks, and HTML structure parsing) and every template's class strings were
-  spot-checked/hand-verified for contrast against PRD §9, but nothing has been rendered in a real
-  browser — no visual layout, hover/focus states, dark-mode flash, or responsive breakpoint check
-  has been done. The pointer-drag gesture in `static/js/grid-drag.js` (Sprint 6) and
-  `static/js/color-sync.js`'s bidirectional color-picker/hex-field pairing (Sprint 7) have still
-  never been exercised in a real DOM, only reasoned through by reading their source. Sprint 10 adds
-  two more of the same shape: **`static/js/export.js`'s PNG canvas render has never been visually
-  confirmed** (does the drawn image actually look like the on-screen grid, not just "the code reads
-  the right DOM properties" — reasoned through, not seen), and **the print-only CSS's actual
-  printed/PDF output has never been seen either** (does `window.print()` really produce a clean,
-  full, chrome-free page once the browser's own print engine gets involved, not just "the right
-  Tailwind classes are compiled"). Run `claude mcp add playwright -- npx @playwright/mcp@latest` at
-  the next opportunity — this gap is now eight additions deep across ten sprints and has not been
-  shrinking, only accumulating. Neither Sprint 9's Docker work nor Sprint 10's export feature closes
-  this gap: both prove the app runs/behaves identically at the HTTP/data layer (same test suite,
-  same request/response contract), which is orthogonal to whether anything actually looks or
+- **No *automated* browser QA.** The Playwright MCP server (required by `qa-tester`) is still not
+  configured in this environment. Auth, landing/dashboard, planner settings, the read-only grid,
+  every block-interactivity flow, every palette CRUD flow, and the containerized deployment have
+  all been verified via Django's test client or direct HTTP requests (status codes, redirect
+  targets, response headers including `HX-Retarget`/`HX-Reswap`, response body assertions,
+  DB-state checks, and HTML structure parsing) and every template's class strings were
+  spot-checked/hand-verified for contrast against PRD §9. **Update:** the user has since manually
+  captured and supplied real browser screenshots — landing page in both light and dark, the empty
+  and populated dashboard grid, the block create/edit form, and the color palette panel — now
+  embedded in the README (`assets/ForTheReadme/`), plus a real sample export (`weekly-planner.md`,
+  `.svg`, `.png`) confirming both the SVG export template and the PNG canvas renderer (Sprint 10)
+  produce output that actually looks like the on-screen grid, not just "the code reads the right
+  DOM properties." This closes the pure "has anyone ever looked at this in a browser" gap for those
+  specific screens, but it is a handful of static snapshots, not regression coverage: hover/focus
+  states, dark-mode flash, responsive breakpoints, the pointer-drag gesture in
+  `static/js/grid-drag.js` (Sprint 6), `static/js/color-sync.js`'s bidirectional color-picker/hex
+  pairing (Sprint 7), and the print-only CSS's actual printed/PDF output (Sprint 10) still have
+  never been exercised or seen, only reasoned through by reading source. Run
+  `claude mcp add playwright -- npx @playwright/mcp@latest` at the next opportunity to turn these
+  one-off manual screenshots into a repeatable, automated suite. Neither Sprint 9's Docker work nor
+  Sprint 10's export feature closes this gap on its own: both prove the app runs/behaves
+  identically at the HTTP/data layer (same test suite, same request/response contract), which is
+  orthogonal to whether every interaction actually looks or
   behaves correctly once painted and scripted in a real browser.
 - **No CI pipeline.** `manage.py test` and `ruff check` are both clean and documented as the
   commands to run, and now also verified to pass identically inside the Docker image, but nothing

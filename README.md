@@ -1,10 +1,37 @@
-# Django Weekly Planner - Template
+# Django Weekly Planner
 
-A modular, time-blocking weekly planner template built with Python, Django, and CSS Grid. Organize your routine like a spreadsheet.
+*A time-blocking weekly planner, built like a spreadsheet.*
 
-![Concept preview](assets/preview.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/ForTheReadme/MainPageDark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/ForTheReadme/MainPageLight.png">
+  <img alt="Django Weekly Planner landing page" src="assets/ForTheReadme/MainPageLight.png">
+</picture>
 
-> The image above is the original pre-development concept sketch (day-of-week columns, time-slot rows, free-form colored blocks) — it predates the implementation and isn't a live screenshot. No browser-screenshot tooling was available while building this template, so no rendered screenshots are included yet; see `docs/ARCHITECTURE.md`'s "Known, expected gaps" section.
+Click an empty slot, type whatever you want — "Gym", "Deep work", "Pick up the kids" — optionally pick a color, and drag an edge to make it longer. That's the whole interaction model. No fixed categories, no mandatory event fields, no calendar-app ceremony.
+
+This started as a personal itch — wanting to block out a week without fighting a calendar app that insists on "events" with invites and reminders — and turned into a small, honest Django template anyone can clone and run for themselves.
+
+## A quick look
+
+<table>
+<tr>
+<td width="50%"><img src="assets/ForTheReadme/Dashboard.png" alt="Empty weekly grid"></td>
+<td width="50%"><img src="assets/ForTheReadme/FinalDashboard.png" alt="Weekly grid with blocks"></td>
+</tr>
+<tr>
+<td align="center"><sub>Your week, empty</sub></td>
+<td align="center"><sub>...and with a routine blocked in</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/ForTheReadme/Insert.png" alt="Creating a block"></td>
+<td width="50%"><img src="assets/ForTheReadme/Color.png" alt="Color palette panel"></td>
+</tr>
+<tr>
+<td align="center"><sub>Click a cell, type a label</sub></td>
+<td align="center"><sub>Bring your own colors</sub></td>
+</tr>
+</table>
 
 ## Features
 
@@ -12,10 +39,17 @@ A modular, time-blocking weekly planner template built with Python, Django, and 
 - **Vertical resize (merge).** Drag a block's edge, or use the +/- keyboard fallback, to span multiple consecutive time slots.
 - **Repeat across days.** Create a block once and copy it to other days in the same request; days where it would overlap are skipped and reported, not silently dropped.
 - **Personal color palette.** Name + hex colors you manage yourself; deleting a color leaves affected blocks with a neutral fallback appearance instead of breaking anything.
+- **Export anywhere.** Grab your week as Markdown, SVG, or PNG, or hit print for a clean PDF — all generated from your real data, zero extra dependencies.
 - **Zero full-page reloads.** Every block/color/settings operation is an HTMX partial swap.
 - **Light/dark theme**, persisted per browser, honored on every screen.
 - **Configurable grid**: 30 or 60-minute slots, any day-start/day-end range (including a range that crosses midnight), 24h or 12h AM/PM display.
 - **Native Django auth** — no extra auth package.
+
+## Export your week
+
+<img src="assets/ForTheReadme/weekly-planner.png" width="480" alt="Sample weekly export">
+
+Markdown lists every block you own, exactly as entered; SVG and PNG mirror what's on screen for your current day range. Take a look at a real sample export: [Markdown](assets/ForTheReadme/weekly-planner.md) · [SVG](assets/ForTheReadme/weekly-planner.svg).
 
 ## Tech stack
 
@@ -24,7 +58,7 @@ A modular, time-blocking weekly planner template built with Python, Django, and 
 | Language / framework | Python 3.12+, Django 6.0 |
 | Templates | Django Template Language, server-rendered |
 | Styling | TailwindCSS v4 (standalone CLI, no Node.js) |
-| Interactivity | HTMX + a small amount of Vanilla JS (drag-to-resize, theme toggle, color-hex sync, text-contrast) |
+| Interactivity | HTMX + a small amount of Vanilla JS (drag-to-resize, theme toggle, color-hex sync, text-contrast, export) |
 | Database | SQLite (single file) |
 | Auth | `django.contrib.auth` (native) |
 | Dependency management | [`uv`](https://docs.astral.sh/uv/) |
@@ -43,7 +77,7 @@ django-weekly-planner/
 ├── apps/
 │   ├── core/             # landing page, dashboard shell, TimestampedModel
 │   ├── accounts/         # native signup/login/logout
-│   └── planner/          # BlockColor/PlannerSettings/TimeBlock models, grid builder, HTMX views
+│   └── planner/          # BlockColor/PlannerSettings/TimeBlock models, grid builder, export, HTMX views
 ├── templates/            # base.html + shared partials (navbar, footer, buttons, form fields)
 ├── static/               # css/ (Tailwind source + compiled output), js/
 └── db.sqlite3            # gitignored; created by `migrate`
@@ -118,7 +152,7 @@ Minify for a production build:
 uv run python manage.py test
 ```
 
-Runs the full suite (models, views, and the pure-Python grid builder) against Django's own throwaway test database — nothing here depends on `db.sqlite3` or any seeded data, so this passes clean from a fresh clone right after `uv sync` + `migrate`. Verified to pass identically under `--shuffle`, `--reverse`, and `--parallel 4` — no test-ordering or shared-state dependency.
+Runs the full suite (models, views, and the pure-Python grid/export builders) against Django's own throwaway test database — nothing here depends on `db.sqlite3` or any seeded data, so this passes clean from a fresh clone right after `uv sync` + `migrate`. Verified to pass identically under `--shuffle`, `--reverse`, and `--parallel 4` — no test-ordering or shared-state dependency.
 
 ### Run with Docker
 
@@ -135,7 +169,7 @@ docker compose up -d
 > served to anyone who can reach it. Before exposing this container beyond `localhost`, set
 > `DEBUG=False` and a real, non-empty `ALLOWED_HOSTS` in `.env`.
 
-This builds a `python:3.12-slim` image (dependencies installed via `uv`, static files collected at build time, served by WhiteNoise — no separate nginx needed), then on container start runs `manage.py migrate` before starting `gunicorn`. The app is reachable at **http://localhost:8010** (port 8000 is left free for a local `runserver`; change the host-side port in `docker-compose.yml` if you'd like it on 8000 instead).
+This builds a `python:3.12-slim` image (dependencies installed via `uv`, static files collected at build time, served by WhiteNoise — no separate nginx needed), then on container start runs `manage.py migrate` before starting `gunicorn`. The app is reachable at **http://localhost:2000** (port 8000 is left free for a local `runserver`; change the host-side port in `docker-compose.yml` if you'd like it on 8000 instead).
 
 The SQLite database lives in a named Docker volume (`sqlite_data`, mounted at `/app/data` in the container) so your data survives `docker compose down`/`up` — use `docker compose down -v` if you actually want to wipe it.
 
@@ -171,3 +205,12 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new app, swap the colo
 ## License
 
 [PolyForm Noncommercial License 1.0.0](LICENSE) — free for personal, noncommercial use (studying it, running it for yourself, adapting it for a hobby project). Selling this software, or using it for any commercial purpose, is not permitted.
+
+<details>
+<summary>Where it started</summary>
+<br>
+
+<img src="assets/ForTheReadme/preview.svg" width="480" alt="Original concept sketch">
+
+The napkin sketch this was built from, before any code existed — day columns, time-slot rows, free-form colored blocks. Kind of nice to see it turn into everything above.
+</details>
