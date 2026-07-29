@@ -1,0 +1,79 @@
+{% comment %}
+Renders one `BlockColor`'s display row (PRD FR-13, 7.1.1-7.1.3, US-4.1),
+the palette analog of `block_cell.html`. Self-sufficient (no ancestor
+styling assumed) so it renders correctly both inside `palette_panel.html`
+and standalone, whenever `planner:color-cancel` swaps it back in after an
+edit is cancelled.
+
+Usage, from a `{% for color in colors %}` loop:
+    {% include 'planner/partials/color_row.html' with color=color %}
+
+`id="color-row-{{ color.pk }}"` is the fixed slot this color occupies in
+the DOM over time -- `color_form_row.html`'s edit-mode root renders onto
+this exact same id (see that template's own docstring), since whichever
+of the two (display row / edit form) is currently live is what
+`ColorUpdateView.form_invalid()`'s `HX-Retarget: #color-row-{pk}` header
+and `ColorCancelView`'s GET both need to retarget/replace.
+
+`data-color-row` is a bare structural marker (no value needed), not an
+id: it exists purely so a Cancel button inside the *edit-form* variant of
+this same DOM slot (`color_form_row.html`) can target
+`hx-target="closest [data-color-row]"` without needing to know this
+color's specific pk-based id -- the same `closest <selector>` idiom
+`block_form.html`'s Cancel button already uses via `closest td`, just an
+attribute selector instead of a tag selector since color rows are plain
+`<div>`s, not `<td>`s (verified against the current htmx 2.x docs via
+Context7: `closest <CSS selector>` matches the closest ancestor-or-self,
+any valid CSS selector including attribute selectors, not just tag
+names).
+
+Edit/delete icon buttons mirror `block_cell.html`'s pencil/trash SVG
+markup and `h-3 w-3` icon / `p-1` rounded-button sizing verbatim (no new
+icons invented, per this sprint's brief) but deliberately do NOT reuse
+that file's `bg-black/20`/`hover:bg-black/40`/`text-white` scrim
+verbatim: that treatment exists there specifically because a block cell's
+background is an arbitrary user-chosen hex color, so a translucent
+overlay is the only reliably-visible choice against literally any
+background (`ARCHITECTURE.md`'s "Hover-control icon buttons" note).
+This row's background is instead the fixed light/dark card token this
+whole panel already uses -- reusing a white-on-translucent-black scheme
+here would land at roughly a 1.5:1 contrast ratio against this specific
+light card background, well under WCAG AA (NFR-06). A neutral/danger
+icon-button treatment consistent with the rest of the design system's
+plain-background icon buttons is used instead, keeping the icon
+markup/sizing identical.
+{% endcomment %}
+<div id="color-row-{{ color.pk }}" data-color-row class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+    <div class="flex items-center gap-2">
+        <span class="block h-6 w-6 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-600" style="background-color: {{ color.hex_code }};" aria-hidden="true"></span>
+        <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ color.name }}</span>
+        <span class="text-xs text-slate-500 dark:text-slate-400">{{ color.hex_code }}</span>
+    </div>
+    <div class="flex gap-1">
+        <button
+            type="button"
+            hx-get="{% url 'planner:color-edit' color.pk %}"
+            hx-target="closest [data-color-row]"
+            hx-swap="outerHTML"
+            aria-label="Edit {{ color.name }}"
+            class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        >
+            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+            </svg>
+        </button>
+        <button
+            type="button"
+            hx-post="{% url 'planner:color-delete' color.pk %}"
+            hx-confirm="Delete “{{ color.name }}”? Blocks using this color will lose it."
+            hx-target="#palette-panel"
+            hx-swap="outerHTML"
+            aria-label="Delete {{ color.name }}"
+            class="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+        >
+            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"></path>
+            </svg>
+        </button>
+    </div>
+</div>

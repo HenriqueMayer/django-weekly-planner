@@ -29,10 +29,8 @@
             {% else %}
                 {% url 'accounts:signup' as signup_url %}
                 {% include 'partials/buttons/primary.html' with href=signup_url label='Sign up' %}
-                <a
-                    href="{% url 'accounts:login' %}"
-                    class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-                >Log in</a>
+                {% url 'accounts:login' as login_url %}
+                {% include 'partials/buttons/secondary.html' with href=login_url label='Log in' %}
             {% endif %}
         </div>
     </section>

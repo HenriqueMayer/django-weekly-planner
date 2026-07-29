@@ -9,7 +9,12 @@ from apps.planner.views import (
     BlockResizeView,
     BlockUpdateView,
     CellCancelView,
+    ColorCancelView,
+    ColorCreateView,
+    ColorDeleteView,
+    ColorUpdateView,
     GridView,
+    PaletteView,
     SettingsUpdateView,
 )
 
@@ -24,4 +29,9 @@ urlpatterns = [
     path('blocks/<int:pk>/resize/', BlockResizeView.as_view(), name='block-resize'),
     path('blocks/<int:pk>/cancel/', BlockCancelView.as_view(), name='block-cancel'),
     path('cells/cancel/', CellCancelView.as_view(), name='cell-cancel'),
+    path('colors/', PaletteView.as_view(), name='palette'),
+    path('colors/create/', ColorCreateView.as_view(), name='color-create'),
+    path('colors/<int:pk>/edit/', ColorUpdateView.as_view(), name='color-edit'),
+    path('colors/<int:pk>/cancel/', ColorCancelView.as_view(), name='color-cancel'),
+    path('colors/<int:pk>/delete/', ColorDeleteView.as_view(), name='color-delete'),
 ]

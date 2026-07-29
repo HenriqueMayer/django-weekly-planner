@@ -1,0 +1,21 @@
+{% comment %}
+The "+ Add color" trigger button (PRD FR-13, 7.1.1, US-4.1) -- the
+palette analog of `empty_cell.html`'s click-to-open idiom. Its own file,
+not inlined into `palette_panel.html`, for two reasons: `PaletteView`
+renders it standalone as the "cancel add" target (mirrors
+`CellCancelView` rendering `empty_cell.html` standalone), and
+`palette_panel.html` also just `{% include %}`s this same file -- one
+copy of the markup, not two (PRD R5/NFR-01).
+
+`hx-target="this"` -- the button replaces itself with the create-form
+fragment (`color_form_row.html`, unbound, `form.instance.pk` falsy) --
+the same pattern `empty_cell.html` already uses to open the block-create
+form in place.
+{% endcomment %}
+<button
+    type="button"
+    hx-get="{% url 'planner:color-create' %}"
+    hx-target="this"
+    hx-swap="outerHTML"
+    class="w-full rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+>+ Add color</button>

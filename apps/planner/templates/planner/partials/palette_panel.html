@@ -1,0 +1,43 @@
+{% comment %}
+Renders the logged-in user's color palette (PRD FR-13, Epic E4/US-4.1,
+7.1.1-7.1.3). Embedded directly in `core/dashboard.html`'s toolbar
+"Palette" `<details>`/`<summary>` dropdown on initial page load (context
+`colors` already provided there by `DashboardView`, PRD 7.1.1), and
+re-rendered wholesale as the *primary* target of every color CRUD success
+response (`_render_palette_response()`, apps/planner/views.py) -- one
+partial, not duplicated markup, per PRD R5/NFR-01.
+
+`id="palette-panel"` is the fixed swap target every color-mutating
+form/button in this panel declares via
+`hx-target="#palette-panel" hx-swap="outerHTML"`. Whole-panel
+re-rendering on every mutation is the same "correctness over
+minimalism" call `_render_grid_response()`'s own module docstring
+already makes for the block grid: a color rename/recolor/delete changes
+how blocks elsewhere on the page render, so the response also carries an
+out-of-band refresh of `grid_table.html` right alongside this panel
+(see `_render_palette_response()`), not just this panel in isolation.
+
+Usage:
+    {% include 'planner/partials/palette_panel.html' with colors=colors %}
+{% endcomment %}
+<div id="palette-panel" class="space-y-2">
+    {% comment %}
+    Sprint 7 (7.2.3 audit -- this partial is new this sprint, first-time
+    pass): the row list is wrapped in its own bounded, scrollable region
+    so a large palette can't grow this dropdown card past the viewport at
+    the fixed `w-80` width -- the same bounded-container idiom
+    `grid_table.html` already uses (`max-h-* overflow-y-auto`), sized down
+    to this panel's own scale. "+ Add color" (below) deliberately stays
+    OUTSIDE this scrollable region -- always visible without having to
+    scroll past existing colors to find it. `pr-1` keeps the scrollbar
+    (when it appears) from overlapping the row's own edit/delete icons.
+    {% endcomment %}
+    <div class="max-h-72 space-y-2 overflow-y-auto pr-1">
+        {% for color in colors %}
+            {% include 'planner/partials/color_row.html' with color=color %}
+        {% empty %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">No colors yet — add one below.</p>
+        {% endfor %}
+    </div>
+    {% include 'planner/partials/color_add_trigger.html' %}
+</div>

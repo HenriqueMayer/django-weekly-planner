@@ -14,6 +14,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 4 — Planner Domain (Models, Signals, Admin, Settings): complete.**
 **Sprint 5 — Grid Rendering (Server-Side): complete.**
 **Sprint 6 — Block Interactivity (HTMX + Vanilla JS): complete.**
+**Sprint 7 — Color Palette, Theming & UX Polish: complete.**
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -25,7 +26,12 @@ Monday-Sunday columns, time-slot rows honoring the user's interval/range/format 
 blocks placed with correct `rowspan`, including midnight-crossing and interval-misaligned blocks.
 The grid is no longer read-only: blocks can be created, edited, deleted, resized (by drag or by a
 keyboard/click '+/-' fallback), and repeated across days, all via inline HTMX partial swaps with
-zero full-page reloads. See §13 in the PRD for the full sprint plan and checklist.
+zero full-page reloads. Users now also maintain a personal color palette (create/rename/recolor/
+delete, HTMX-driven, from a second dashboard-toolbar dropdown) — deleting a color immediately
+clears affected blocks to the neutral fallback appearance in the same response, not just
+eventually. A dark/light and responsive audit pass fixed several real contrast and layout bugs
+across both old and new screens, and `ruff` is now configured as a dev-only lint tool. See §13 in
+the PRD for the full sprint plan and checklist.
 
 ---
 
@@ -34,7 +40,8 @@ zero full-page reloads. See §13 in the PRD for the full sprint plan and checkli
 ```
 django-weekly-planner/
 ├── manage.py
-├── pyproject.toml          # uv-managed; django>=6.0.7 is the sole runtime dependency
+├── pyproject.toml          # uv-managed; django>=6.0.7 is the sole runtime dependency;
+│                           # ruff lives in [dependency-groups].dev (Sprint 7, 7.3.1)
 ├── uv.lock
 ├── .python-version         # 3.12
 ├── .env.example
@@ -63,23 +70,34 @@ django-weekly-planner/
 │       ├── signals.py          # post_save on User -> auto-create PlannerSettings
 │       ├── apps.py             # PlannerConfig.ready() registers signals.py
 │       ├── admin.py            # all three models registered
-│       ├── forms.py            # PlannerSettingsForm, TimeBlockForm (Sprint 6, incl. repeat_days)
+│       ├── forms.py            # PlannerSettingsForm, TimeBlockForm (Sprint 6, incl. repeat_days),
+│       │                       # BlockColorForm (Sprint 7, hand-rolled uniqueness clean())
 │       ├── views.py            # SettingsUpdateView, GridView, + Sprint 6's BlockCreateView,
 │       │                       # BlockUpdateView, BlockDeleteView, BlockResizeView,
-│       │                       # CellCancelView, BlockCancelView (all LoginRequiredMixin)
-│       ├── urls.py             # app_name = 'planner'; '' (grid), settings/, blocks/*, cells/cancel/
+│       │                       # CellCancelView, BlockCancelView, + Sprint 7's PaletteView,
+│       │                       # ColorCreateView, ColorUpdateView, ColorCancelView,
+│       │                       # ColorDeleteView (all LoginRequiredMixin)
+│       ├── urls.py             # app_name = 'planner'; '' (grid), settings/, blocks/*,
+│       │                       # cells/cancel/, colors/* (Sprint 7)
 │       └── templates/planner/
 │           ├── settings_form.html    # standalone settings page (Sprint 4)
 │           ├── grid.html             # standalone grid page (Sprint 5); loads grid-drag.js/
 │           │                         # contrast.js (Sprint 6, extra_body block)
 │           └── partials/
 │               ├── grid_table.html    # shared <table> + #grid-toast, included by grid.html +
-│               │                     # dashboard.html
+│               │                     # dashboard.html; grid_oob flag (Sprint 7) lets it also
+│               │                     # serve as an OOB refresh for palette CRUD responses
 │               ├── block_cell.html    # block-start <td>: presentation, hover edit/delete
 │               │                     # controls, resize handles (Sprint 6)
 │               ├── empty_cell.html    # empty, clickable <td>; hx-get opens block_form.html
-│               └── block_form.html    # Sprint 6: shared inline create/edit form, overlay-card
-│                                     # layout, repeat-days checkboxes, +/- resize buttons
+│               ├── block_form.html    # Sprint 6: shared inline create/edit form, overlay-card
+│               │                     # layout, repeat-days checkboxes, +/- resize buttons
+│               ├── palette_panel.html    # Sprint 7: #palette-panel, embedded in dashboard.html's
+│               │                        # Palette dropdown + primary CRUD swap target
+│               ├── color_row.html        # Sprint 7: one BlockColor's display row
+│               ├── color_form_row.html   # Sprint 7: shared create/edit form, dual-moded like
+│               │                        # block_form.html; hand-rolled hex_code + color picker
+│               └── color_add_trigger.html # Sprint 7: "+ Add color" button / cancel-add target
 ├── templates/
 │   ├── base.html
 │   └── partials/
@@ -87,7 +105,11 @@ django-weekly-planner/
 │       ├── footer.html
 │       ├── form_field.html    # shared label/widget/help/error row — Sprint 2
 │       └── buttons/
-│           └── primary.html   # shared primary-button partial (<a>/<button>) — Sprint 4
+│           ├── primary.html   # shared primary-button partial (<a>/<button>) — Sprint 4
+│           └── secondary.html # shared secondary-button partial (<a>/<button>/<summary>,
+│                               # +hx_get/hx_target/hx_swap) — Sprint 7, extracted once a 6th
+│                               # hand-duplicated call site crossed Sprint 6's own pre-flagged
+│                               # threshold
 ├── static/
 │   ├── css/
 │   │   ├── input.css        # Tailwind v4 source (CSS-first config); .htmx-request rule (Sprint 6)
@@ -96,7 +118,10 @@ django-weekly-planner/
 │       ├── htmx.min.js      # vendored, not CDN-loaded
 │       ├── theme.js
 │       ├── grid-drag.js     # Sprint 6: Pointer Events drag-to-resize, document-delegated
-│       └── contrast.js      # Sprint 6 (early PRD 7.2.2): block text-color luminance rule
+│       ├── contrast.js      # Sprint 6 (early PRD 7.2.2): block text-color luminance rule
+│       └── color-sync.js    # Sprint 7: pairs a native <input type=color> with a hex text
+│                             # input via data-hex-sync, document-delegated (same rationale
+│                             # as grid-drag.js/contrast.js)
 └── db.sqlite3               # gitignored
 ```
 
@@ -124,8 +149,10 @@ to the PRD's literal wording later.
 | PRD 6.1.2/6.1.3 imply separate `BlockCreateFormView` (GET) and `BlockCreateView` (POST) classes | **One `BlockCreateView(CreateView)`** handling both verbs | `CreateView` already natively handles GET (unbound/initial form) and POST (validate+save) — a second, near-identical class would be pure duplication with no behavioral benefit, against NFR-01. Same reasoning applies to `BlockUpdateView` for 6.2.1/6.2.2. |
 | PRD 6.1.3/6.2.2/6.3.3 say re-render "the affected day column fragment" | **Every mutating view re-renders the entire grid table** (`_render_grid_response()`, `apps/planner/views.py`) | The grid is a single native `<table>` using `rowspan` for vertical merges (Sprint 5). Any mutation can reshape which rows are `'occupied'` vs. `'empty'`/`'block-start'` for a whole day column, changing how many `<td>` elements exist across multiple `<tr>` rows — not safely expressible as a small HTMX out-of-band patch without desync risk. The PRD's own 6.1.3 wording explicitly offers "simply re-render the affected day column... for correctness" as the sanctioned simpler fallback; re-rendering the whole table (cheap — pure Python over ≤100 blocks, NFR-03) is that same idea taken to its simplest, always-correct conclusion. `code-reviewer` reviewed this design decision directly (not just the resulting code) and confirmed it sound, while flagging one accepted side effect — see the Sprint 6 section below. |
 | PRD 6.2.3 implies a `DeleteView` | **A small custom `View`, POST-only** (`BlockDeleteView`) | The generic `DeleteView`'s GET-renders-a-confirmation-page default is unused scope here — the confirmation step is the client-side `hx-confirm` attribute, not a server-rendered page. |
+| PRD 7.1.2 names three color CBVs (`ColorCreateView`, `ColorUpdateView`, `ColorDeleteView`) | **Two more small views added**: `PaletteView` (GET, restores the "+ Add color" trigger) and `ColorCancelView` (GET, restores a color's display row after an edit is cancelled) | Direct palette-panel analogs of Sprint 6's own `CellCancelView`/`BlockCancelView`, which the PRD's 6.1.5/6.2.1 wording likewise didn't name explicitly — same reasoning, not new scope. |
+| PRD 7.1.1 doesn't mention a uniqueness-validation gap | `BlockColorForm.clean()` hand-rolls a `(user, name)` uniqueness check | `user` is excluded from `Meta.fields`, so Django's automatic `UniqueConstraint` validation never fires for it during `full_clean()` (traced through the installed Django 6.0.7 source by `code-reviewer`, not assumed) — without this, a duplicate name would 500 with an `IntegrityError` instead of a clean HTTP 200 inline error. Same class of fix as `TimeBlockForm`'s pre-existing `user`-in-`__init__` ordering fix, just a different symptom. |
 
-Everything else in Sprints 1–6 follows the PRD as written.
+Everything else in Sprints 1–7 follows the PRD as written.
 
 ---
 
@@ -147,6 +174,20 @@ into one partial that renders either an `<a href>` or a `<button type="submit">`
 whether an `href` context variable is supplied; the long class string now exists exactly once.
 Same rationale as `form_field.html` in Sprint 2. Secondary/danger button strings are not yet
 extracted (still below the 3+ repetition threshold) — see Sprint 4 section below.
+
+**Secondary-button partial** (`templates/partials/buttons/secondary.html`, Sprint 7): the PRD §9.2
+secondary-button class string reached 6 call sites across 5 templates (landing's "Log in" link,
+the navbar's Logout button, both dashboard toolbar `<summary>` triggers, and the block/color
+inline forms' Cancel buttons) — Sprint 6's own ARCHITECTURE.md notes had already pre-flagged the
+extraction as due "once a fifth call site would otherwise appear," and `code-reviewer` caught that
+this sprint's own new code (the Palette `<summary>`, the new color-form Cancel button) is exactly
+what crossed it. Mirrors `primary.html`'s dual-mode `<a href>`/`<button>` shape, extended with a
+third `as_summary` mode (for the toolbar `<details>` triggers, which are neither a link nor a
+button) and optional named `hx_get`/`hx_target`/`hx_swap` context variables for the two HTMX
+Cancel buttons — plain, auto-escaped Django template variables, not a raw attribute-string
+escape hatch, so there is no `|safe`/`{% autoescape off %}` anywhere in the partial and no
+injection surface even though two call sites now feed it dynamic (but always server-resolved,
+never user-controlled) URLs.
 
 **Colorless-block fallback (Sprint 5)**: a `TimeBlock` with no `color` (nullable, `SET_NULL` on
 delete per FR-13) has no hex value to source an inline `style` from. PRD §9.1's token table has no
@@ -177,6 +218,25 @@ both swatch `<span>`s, mirroring the existing `peer-checked:ring-offset-1` sibli
 in the same file (which is also the only other `ring-offset` usage anywhere in the project — no
 new convention was invented). Each radio `<input>` also gained `aria-label` (the color's name, or
 `'No color'`) rather than relying solely on the ancestor `<label>`'s `title` attribute.
+
+**Two contrast fixes from the Sprint 7 dark/light audit**: `templates/partials/footer.html`'s
+`text-slate-500` had no dark variant (~3.74:1 against `dark:bg-slate-900`, under WCAG AA) — fixed
+with `dark:text-slate-400`, PRD §9.1's own secondary-text token, reused verbatim. `block_form.html`'s
+"no color" swatch `×` glyph (already flagged as a known deferred item in the Sprint 6 section below)
+went from unconditional `text-slate-400` to `text-slate-600 dark:text-slate-400`. Both are
+one-line, no-new-token fixes to pre-existing drift, not Sprint 7 feature code.
+
+**Second icon-button convention (Sprint 7)**: `color_row.html`'s Edit/Delete icon buttons reuse
+`block_cell.html`'s pencil/trash SVG markup and sizing verbatim, but deliberately do *not* reuse
+its translucent `bg-black/20` scrim — that treatment exists specifically because a block cell's
+background is an arbitrary user-chosen hex color, where a translucent-black overlay is the only
+reliably-visible choice against literally any background. A color row's background is the fixed
+light/dark card token this panel already uses, where that same scrim computes to roughly 1.5:1
+contrast — well under WCAG AA. A neutral/danger icon-button treatment (`text-slate-500
+hover:bg-slate-100` / `hover:bg-rose-50`) is used there instead. This is now a second,
+distinct icon-button convention in the codebase (scrim-on-arbitrary-background vs.
+neutral-on-fixed-background); a third call site should reuse whichever of the two actually
+matches its own background, not invent a third variant.
 
 ---
 
@@ -503,29 +563,129 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Color palette (Sprint 7)
+
+- **`BlockColorForm`** (`apps/planner/forms.py`): a `ModelForm` over `name`/`hex_code`, styled via
+  the same `INPUT_CLASSES`-in-`__init__` pattern every other form in this project uses. Requires a
+  `user` kwarg, set on `self.instance` in `__init__` — the same ordering fix `TimeBlockForm`
+  already established (Sprint 6), needed here for the identical reason: `ModelForm._post_clean()`
+  runs `instance.full_clean()` during `is_valid()`, before any view's `form_valid()`. A second,
+  less obvious gap surfaced this sprint: setting `self.instance.user` alone is *not* sufficient for
+  the model's `UniqueConstraint(fields=['user', 'name'])` to actually be enforced, because `user`
+  isn't one of this form's `Meta.fields` — Django's `_get_validation_exclusions()` adds any
+  form-excluded field to the `exclude` list passed into both `full_clean()` and
+  `validate_constraints()`, and `UniqueConstraint.validate()` skips the whole check the moment any
+  of its fields is in that `exclude` set. `code-reviewer` traced this through the installed Django
+  6.0.7 source directly (not just the docs) to confirm the reasoning, not just the symptom. Fixed
+  with a hand-rolled `clean()` uniqueness check (same shape `TimeBlock.clean()`'s own user-scoped
+  overlap check already uses, for the same class of reason — a check spanning a field excluded
+  from the form). Without this, a duplicate color name wouldn't fail validation at all; it would
+  pass `is_valid()` and then raise an unhandled `IntegrityError` from the database at `.save()`
+  time, a 500 instead of a clean inline error.
+- **Views** (`apps/planner/views.py`, bottom): `ColorCreateView`/`ColorUpdateView` mirror
+  `BlockCreateView`/`BlockUpdateView` exactly — `get_form_kwargs()` injects `user`,
+  `get_queryset()` (update only) scopes by `request.user` before the pk lookup (404, not 403,
+  NFR-07), `form_invalid()` sets `HX-Retarget`/`HX-Reswap` to redirect a validation-error response
+  back into the form's own small slot rather than the whole panel. `ColorDeleteView` mirrors
+  `BlockDeleteView` (POST-only, no confirmation page — that's the client-side `hx-confirm`).
+  `PaletteView` and `ColorCancelView` are the palette-panel analogs of Sprint 6's
+  `CellCancelView`/`BlockCancelView` — GET-only fragment endpoints restoring, respectively, the
+  "+ Add color" trigger and one color's display row.
+- **The palette-panel swap + grid-refresh problem**: a color rename/recolor/delete changes how
+  *other* parts of the page render (any block using that color), not just the palette panel
+  itself — unlike Sprint 6's block mutations, which only ever need to affect `#grid-table`. Rather
+  than inventing a second toast-like channel, `_render_palette_response()` reuses the exact
+  mechanism `#grid-toast` already established: render `palette_panel.html` (the primary content,
+  matched by whichever element's `hx-target="#palette-panel"` triggered the request) immediately
+  followed by a second render of `grid_table.html`, concatenated into one `HttpResponse` — but this
+  time `grid_table.html` is *not* the primary target, so it needs the `hx-swap-oob="true"`
+  attribute to be picked up as an out-of-band swap instead. Rather than a second, OOB-only wrapper
+  template (which would reintroduce the nested-vs-top-level OOB-matching ambiguity `#grid-toast`'s
+  own docstring already goes out of its way to avoid), `grid_table.html` gained one new context
+  flag, `grid_oob`: `{% if grid_oob %}hx-swap-oob="true"{% endif %}` on its existing `#grid-table`
+  wrapper. Every Sprint 6 block-mutating view never passes this flag, so it stays absent/falsy
+  there and that whole code path is byte-for-byte unchanged — `qa-tester` and `code-reviewer` both
+  independently confirmed this empirically (inspecting the actual `#grid-table` tag in a normal
+  block-mutation response), not just by reading the `{% if %}` and assuming.
+- **Hand-rolled hex field + native color picker** (`color_form_row.html`): same reasoning as
+  Sprint 6's hand-rolled color-swatch `RadioSelect` — a native `<input type="color">` isn't a
+  Django form field at all, and pairing it with the real `hex_code` text input needs a shared
+  `data-hex-sync="<id>"` attribute that generic field rendering (`form_field.html`) has no hook to
+  inject. `static/js/color-sync.js` pairs any two same-valued `data-hex-sync` elements
+  bidirectionally, document-delegated (not per-element listeners) for the same reason
+  `grid-drag.js` already documents: every save swaps `#palette-panel` wholesale, which would
+  silently orphan a directly-bound listener the moment a user saved once. The native color input
+  always yields a valid lowercase hex, matching the model's case-insensitive
+  `HEX_COLOR_VALIDATOR`; typed hex text only pushes into the color input once it's a *complete*
+  valid match, so an in-progress keystroke never fights the native control.
+- **Responsive/dark-mode fixes bundled into this sprint's audit** (PRD 7.2.1/7.2.3, executed by
+  `django-frontend`): the grid table's `table-fixed w-full` inside `overflow-x-auto` could never
+  actually overflow, so narrow viewports silently squeezed columns instead of scrolling — fixed
+  with `min-w-[760px]`. The two dashboard toolbar `<details>` dropdowns (Settings, Palette) each
+  declared their own `relative` context, so Settings' panel would anchor to Settings' own right
+  edge and overflow off-screen now that Palette sits to its right — fixed by hoisting `relative` to
+  their shared row wrapper, plus a shared `name="dashboard-toolbar"` attribute opting both
+  `<details>` into the HTML living standard's native exclusive-accordion behavior (no JS). Neither
+  fix is browser-confirmed — see the Playwright gap below, now materially relevant to two more
+  concrete, previously-nonexistent UI elements.
+- **`ruff` added as a dev-only lint tool** (PRD 7.3.1): `uv add --dev ruff`, keeping it out of the
+  runtime `dependencies` list entirely (the KPI's "≤5 entries" budget is about runtime deps, and
+  stays untouched). `[tool.ruff]`/`[tool.ruff.lint]` config in `pyproject.toml` (E/F/W/I,
+  migrations excluded from line-length since they're generated, not hand-written). `ruff check`
+  found and fixed 6 genuinely dead `F401` imports, all in Django's own `startapp` boilerplate stub
+  files (`admin.py`/`models.py`/`tests.py` across `accounts`/`core`/`planner`) — real dead code per
+  PRD 7.3.2, zero risk to remove. Deliberately did **not** run `ruff format` across the repo: its
+  own preview diff would have reverted the Sprint 6 PEP 701 single-quote-nesting fix
+  (`f'Skipped {', '.join(...)}...'`) back to mixed quotes, and would have reflowed large amounts of
+  this codebase's deliberate, hand-crafted multi-line docstrings — a bulk restyle was never this
+  task's intent, and NFR-01 argues against a large, low-value diff. `ruff check .` is the enforced
+  command; `[tool.ruff.format] quote-style = 'single'` stays configured for future new code.
+- **Verification**: `qa-tester` ran a dedicated adversarial pass (uniqueness enforcement including
+  no-op-rename and rename-to-collide edge cases, hex validation against malformed input, ownership
+  isolation across all 5 new endpoints including method-confusion 404/405 checks, the SET_NULL +
+  immediate-OOB-grid-refresh requirement end to end, `HX-Retarget` precision for both create- and
+  edit-mode invalid submissions, cancel-flow data freshness against a simulated concurrent update,
+  toast-channel isolation from an unrelated prior block-resize rejection, the `grid_oob`-defaults-
+  falsy regression check on every Sprint 6 view, and `repeat_days` correctly propagating a real
+  palette color for the first time) plus PRD 7.3.3's full manual regression checklist — zero
+  defects found. `code-reviewer` then independently traced the two "verify, don't trust" claims
+  above through Django's own source and live requests, confirmed the `grid_oob` mechanism and the
+  palette OOB-response's raw string concatenation were both safe and proportionate (not a param
+  pile, not fragile HTML), confirmed the `name="dashboard-toolbar"` exclusive-accordion trick is
+  real, standards-track HTML behavior, executed PRD 7.3.2's dead-code/English sweep explicitly, and
+  found one blocking issue (the Secondary-button partial threshold, see the design-system section
+  above) — fixed immediately and independently re-verified (byte-for-byte behavior parity via test
+  client against all 6 migrated call sites, including the two HTMX Cancel buttons' resolved URLs).
+  `manage.py check`/`makemigrations --check --dry-run` stayed clean throughout (no model changes
+  this sprint).
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
   not configured in this environment. Auth, landing/dashboard, planner settings, the read-only
-  grid, and now every block-interactivity flow have all been verified via Django's test client
-  (status codes, redirect targets, response headers including `HX-Retarget`/`HX-Reswap`, response
-  body assertions, DB-state checks, and HTML table-structure parsing) and every template's class
-  strings were spot-checked against PRD §9, but nothing has been rendered in a real browser — no
-  visual layout, hover/focus states, dark-mode flash, or responsive breakpoint check has been done.
-  This sprint made the gap materially worse, not just "one sprint deeper": **the actual pointer-drag
-  gesture in `static/js/grid-drag.js` (`pointerdown`/`pointermove`/`pointerup`, the live preview
-  overlay tracking the cursor, `touch-action: none` on tablets) has never been exercised at all** —
-  every verification of it so far has only confirmed the `BlockResizeView` endpoint it eventually
-  calls behaves correctly, via direct HTTP requests standing in for what the JS *should* produce.
-  Four concrete, still-unconfirmed layout/interaction questions are now stacked up: the auth pages'
-  `min-h-screen` centered card possibly not fitting one viewport (Sprint 3), the settings
-  `<details>` dropdown's `absolute`-positioned panel possibly clipping at narrow widths (Sprint 4),
-  whether an 18+ row grid table at `max-h-[75vh]` produces an awkward nested-scrollbar experience
-  (Sprint 5), and now the entire drag-to-resize gesture plus the hover-controls'
-  `group-hover`/`focus-within` show/hide behavior and the `contrast.js` luminance rule's visual
-  correctness (Sprint 6). Run `claude mcp add playwright -- npx @playwright/mcp@latest` **before
-  Sprint 7** — this gap is now four sprints deep, and Sprint 6 is the first sprint whose primary
-  deliverable (drag-to-resize) has literally never been confirmed to work in a browser at all.
+  grid, every block-interactivity flow, and now every palette CRUD flow have all been verified via
+  Django's test client (status codes, redirect targets, response headers including
+  `HX-Retarget`/`HX-Reswap`, response body assertions, DB-state checks, and HTML structure parsing)
+  and every template's class strings were spot-checked/hand-verified for contrast against PRD §9,
+  but nothing has been rendered in a real browser — no visual layout, hover/focus states,
+  dark-mode flash, or responsive breakpoint check has been done. The pointer-drag gesture in
+  `static/js/grid-drag.js` (Sprint 6) still has never been exercised at all; this sprint adds a
+  second, analogous gap of the same shape — **`static/js/color-sync.js`'s bidirectional pairing
+  between a native `<input type="color">` and the hex text field has never been exercised in a real
+  DOM either**, only reasoned through by reading its source. Six concrete, still-unconfirmed
+  layout/interaction questions are now stacked up: the auth pages' `min-h-screen` centered card
+  possibly not fitting one viewport (Sprint 3), the settings `<details>` dropdown's
+  `absolute`-positioned panel possibly clipping at narrow widths (Sprint 4), whether an 18+ row grid
+  table at `max-h-[75vh]` produces an awkward nested-scrollbar experience (Sprint 5), the entire
+  drag-to-resize gesture plus the hover-controls' `group-hover`/`focus-within` show/hide behavior
+  and the `contrast.js` luminance rule's visual correctness (Sprint 6), and now both
+  `color-sync.js`'s actual picker/text-field sync and whether the two dashboard toolbar `<details>`
+  dropdowns' hand-reasoned positioning/exclusive-accordion fix actually holds up next to each other
+  in a real viewport (Sprint 7). Run `claude mcp add playwright -- npx @playwright/mcp@latest`
+  **before Sprint 8** — this gap is now five sprints deep and has not been shrinking, only
+  accumulating one or two new unconfirmed surfaces per sprint.
 - **No tests, no Docker.** Deliberately deferred to Sprints 8 and 9 per the PRD.
 
 ---

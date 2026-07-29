@@ -34,15 +34,17 @@ variables are always present in context.
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView, UpdateView
 
-from apps.planner.forms import PlannerSettingsForm, TimeBlockForm
+from apps.planner.forms import BlockColorForm, PlannerSettingsForm, TimeBlockForm
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
+    BlockColor,
     PlannerSettings,
     TimeBlock,
     minutes_since_midnight,
@@ -90,6 +92,32 @@ def _render_grid_response(request, toast_message='', toast_level=''):
         'toast_level': toast_level,
     }
     return render(request, 'planner/partials/grid_table.html', context)
+
+
+def _render_palette_response(request):
+    """Palette CRUD success response (PRD 7.1.1-7.1.3): re-renders the
+    whole palette panel (primary content) plus an out-of-band refresh of
+    the grid table, since a color rename/recolor/delete can change how
+    existing blocks render (inline hex background) or, per FR-13, must
+    visibly clear to the colorless fallback the moment a color is
+    deleted -- not just eventually, on a later full page load. Cheap and
+    always correct, the same justification `_render_grid_response()`'s
+    own module docstring already gives for whole-fragment over
+    partial-patch swaps.
+    """
+    colors = BlockColor.objects.filter(user=request.user).order_by('name')
+    palette_html = render_to_string(
+        'planner/partials/palette_panel.html', {'colors': colors}, request=request,
+    )
+    settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
+    blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
+    week_grid = build_week_grid(settings_obj, blocks)
+    grid_html = render_to_string(
+        'planner/partials/grid_table.html',
+        {'week_grid': week_grid, 'toast_message': '', 'toast_level': '', 'grid_oob': True},
+        request=request,
+    )
+    return HttpResponse(palette_html + grid_html)
 
 
 class GridView(LoginRequiredMixin, TemplateView):
@@ -463,3 +491,117 @@ class BlockCancelView(LoginRequiredMixin, View):
             rowspan=block.get_rowspan(settings_obj.slot_interval),
         )
         return render(request, 'planner/partials/block_cell.html', {'cell': cell})
+
+
+class PaletteView(LoginRequiredMixin, TemplateView):
+    """Restores the "+ Add color" trigger button (PRD 7.1.1's create-cancel
+    target), the palette-panel analog of `CellCancelView`/`BlockCancelView`.
+
+    GET-only; `TemplateView` already covers that with no context needed
+    beyond what it provides for free.
+    """
+
+    template_name = 'planner/partials/color_add_trigger.html'
+
+
+class ColorCreateView(LoginRequiredMixin, CreateView):
+    """Creates a new `BlockColor` palette entry (PRD FR-13, 7.1.1, US-4.1).
+
+    Mirrors `BlockCreateView` exactly, but palette entries have no
+    per-day analog, so there is no repeat-across-days step here.
+    """
+
+    model = BlockColor
+    form_class = BlockColorForm
+    template_name = 'planner/partials/color_form_row.html'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_invalid(self, form):
+        """See `BlockCreateView.form_invalid()`'s docstring for the full
+        htmx-interaction reasoning. `#color-form-row` is a fixed id, not
+        derived from any submitted data, for the identical reason
+        `#block-form` is fixed there: a data-derived selector could desync
+        if the user edits the form's fields before an invalid submit.
+        """
+        response = super().form_invalid(form)
+        response['HX-Retarget'] = '#color-form-row'
+        response['HX-Reswap'] = 'outerHTML'
+        return response
+
+    def form_valid(self, form):
+        self.object = form.save()
+        return _render_palette_response(self.request)
+
+
+class ColorUpdateView(LoginRequiredMixin, UpdateView):
+    """Edits an existing `BlockColor` inline (PRD FR-13, 7.1.2, US-4.1).
+
+    Mirrors `BlockUpdateView` exactly.
+    """
+
+    model = BlockColor
+    form_class = BlockColorForm
+    template_name = 'planner/partials/color_form_row.html'
+
+    def get_queryset(self):
+        # Ownership scoping (NFR-07): filter by owner *before* the pk
+        # lookup, so a cross-user pk yields 404, never 403.
+        return BlockColor.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_invalid(self, form):
+        """See `BlockCreateView.form_invalid()`'s docstring for the full
+        htmx-interaction reasoning. Here the edit form replaces this
+        color's own row element, so the retarget is that row's own id
+        (`#color-row-{pk}`, the same id `color_row.html` and
+        `color_form_row.html` both render onto their row wrapper), not a
+        single fixed id shared across all colors.
+        """
+        response = super().form_invalid(form)
+        response['HX-Retarget'] = f'#color-row-{self.object.pk}'
+        response['HX-Reswap'] = 'outerHTML'
+        return response
+
+    def form_valid(self, form):
+        self.object = form.save()
+        return _render_palette_response(self.request)
+
+
+class ColorCancelView(LoginRequiredMixin, View):
+    """Restores one color's display row after an edit is cancelled (PRD
+    7.1.2), the palette analog of `BlockCancelView`.
+    """
+
+    http_method_names = ['get']
+
+    def get(self, request, *args, **kwargs):
+        color = get_object_or_404(BlockColor, pk=kwargs['pk'], user=request.user)
+        return render(request, 'planner/partials/color_row.html', {'color': color})
+
+
+class ColorDeleteView(LoginRequiredMixin, View):
+    """Deletes a `BlockColor` palette entry (PRD FR-13, 7.1.3).
+
+    POST-only, mirrors `BlockDeleteView` exactly. Any `TimeBlock` still
+    referencing this color has its `color` set to `NULL` at the DB level
+    automatically (`on_delete=models.SET_NULL`, already correct on the
+    model) -- this view does nothing extra for that itself, but the
+    grid's out-of-band re-render in `_render_palette_response()` is what
+    makes the colorless fallback show up immediately, not just on the
+    next full page load.
+    """
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        color = get_object_or_404(BlockColor, pk=kwargs['pk'], user=request.user)
+        color.delete()
+        return _render_palette_response(request)

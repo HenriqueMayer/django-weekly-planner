@@ -1,0 +1,126 @@
+{% comment %}
+Shared create/edit form for a single `BlockColor` (PRD FR-13, 7.1.1/7.1.2,
+US-4.1), dual-moded on `form.instance.pk` exactly like `block_form.html`:
+unbound + no pk => create mode; bound to an existing instance => edit
+mode. One template, not two, per PRD R5/NFR-01.
+
+Rendered onto whichever DOM slot it's replacing:
+- Create: `color_add_trigger.html`'s "+ Add color" button replaces
+  itself (`hx-target="this"`) with this fragment, unbound.
+- Edit: `color_row.html`'s Edit button replaces that color's own display
+  row (`hx-target="closest [data-color-row]"`) with this fragment, bound.
+
+Swap strategy (htmx-interaction, Sprint 7 -- mirrors `block_form.html`'s
+own documented reasoning exactly):
+- On a successful submit, `_render_palette_response()`
+  (apps/planner/views.py) returns the whole re-rendered
+  `palette_panel.html` (plus an OOB grid refresh) -- so this `<form>`
+  declares `hx-target="#palette-panel" hx-swap="outerHTML"` for that
+  path, never `hx-target="this"`.
+- On a validation error, `FormMixin`'s default `form_invalid()`
+  re-renders *this same template* with errors bound, status 200 -- but
+  that response must swap back into this fragment's own small slot in
+  the panel, not get dumped into `#palette-panel` (one element can't
+  declare two different targets for the same trigger). `ColorCreateView.
+  form_invalid()`/`ColorUpdateView.form_invalid()` set `HX-Retarget` +
+  `HX-Reswap: outerHTML` response headers to override the target/swap for
+  that one response only (verified against the current htmx 2.x docs via
+  Context7 -- `HX-Retarget` takes a CSS selector, read from the response
+  headers regardless of what the triggering element originally declared).
+  - Create mode retargets to the fixed `#color-form-row` id (below) --
+    fixed rather than data-derived for the identical reason
+    `#block-form` is fixed: a selector computed from *submitted* values
+    (e.g. a name the user is mid-typing) could desync from whatever id
+    the currently-live, pre-swap DOM element actually carries. Same
+    accepted edge case as `block_form.html`: only one "add color" attempt
+    is ever open at once.
+  - Edit mode retargets to `#color-row-{pk}` -- a specific color's own
+    row id, since (unlike create) there is a concrete pk to key off here
+    that cannot itself have changed underneath the request.
+- Cancel restores the prior fragment via a plain `hx-get` to
+  `planner:palette` (create -- restores the "+ Add color" trigger) /
+  `planner:color-cancel` (edit -- restores that color's display row),
+  targeting `closest [data-color-row]` -- this root `<div>` itself
+  carries `data-color-row` too, so `closest()` (which, per the DOM spec,
+  always matches the starting element first before walking up) resolves
+  to this very wrapper in both modes with the one selector, exactly
+  mirroring `block_form.html`'s `closest td` precedent.
+- The `hex_code` field is hand-rendered below rather than run through
+  `partials/form_field.html`, for the same class of reason
+  `block_form.html` hand-rolls its color-swatch `RadioSelect`: a native
+  `<input type="color">` companion picker isn't a Django form field at
+  all, and both the picker and the text input need a shared
+  `data-hex-sync` attribute for `static/js/color-sync.js` to pair them --
+  something the generic field-rendering partial has no hook for.
+{% endcomment %}
+<div id="{% if form.instance.pk %}color-row-{{ form.instance.pk }}{% else %}color-form-row{% endif %}" data-color-row class="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+    {% if form.non_field_errors %}
+        <div class="space-y-1">
+            {% for error in form.non_field_errors %}
+                <p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <form
+        method="post"
+        {% if form.instance.pk %}
+            action="{% url 'planner:color-edit' form.instance.pk %}"
+            hx-post="{% url 'planner:color-edit' form.instance.pk %}"
+        {% else %}
+            action="{% url 'planner:color-create' %}"
+            hx-post="{% url 'planner:color-create' %}"
+        {% endif %}
+        hx-target="#palette-panel"
+        hx-swap="outerHTML"
+        class="space-y-3"
+    >
+        {% csrf_token %}
+
+        {% include 'partials/form_field.html' with field=form.name %}
+
+        {% comment %}
+        Hand-rolled hex field: native color picker + text input, paired
+        via a shared `data-hex-sync` value (the field's own
+        `id_for_label`, guaranteed unique per rendered form) so
+        `static/js/color-sync.js` can find and sync them by that shared
+        attribute value, document-delegated so it keeps working across
+        every future `#palette-panel` swap without re-binding anything.
+        {% endcomment %}
+        <div class="flex flex-col">
+            <label for="{{ form.hex_code.id_for_label }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Hex code</label>
+            <div class="mt-1 flex items-center gap-2">
+                <input
+                    type="color"
+                    data-hex-sync="{{ form.hex_code.id_for_label }}"
+                    value="{{ form.hex_code.value|default:'#4f46e5' }}"
+                    aria-label="Pick a color"
+                    class="h-9 w-9 shrink-0 cursor-pointer rounded border border-slate-300 bg-transparent p-0.5 dark:border-slate-600"
+                >
+                <input
+                    type="text"
+                    id="{{ form.hex_code.id_for_label }}"
+                    name="{{ form.hex_code.html_name }}"
+                    value="{{ form.hex_code.value|default:'' }}"
+                    data-hex-sync="{{ form.hex_code.id_for_label }}"
+                    maxlength="7"
+                    placeholder="#RRGGBB"
+                    class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-indigo-500 focus:ring-indigo-500"
+                >
+            </div>
+            {% for error in form.hex_code.errors %}
+                <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="flex items-center justify-between gap-2 pt-1">
+            {% include 'partials/buttons/primary.html' with label='Save' %}
+            {% if form.instance.pk %}
+                {% url 'planner:color-cancel' form.instance.pk as cancel_url %}
+            {% else %}
+                {% url 'planner:palette' as cancel_url %}
+            {% endif %}
+            {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cancel_url hx_target='closest [data-color-row]' hx_swap='outerHTML' %}
+        </div>
+    </form>
+</div>

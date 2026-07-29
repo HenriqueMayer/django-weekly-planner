@@ -112,9 +112,18 @@ Swap strategy (Sprint 6, htmx-interaction):
             <div>
                 <span class="block text-sm font-medium text-slate-700 dark:text-slate-300">Color</span>
                 <div class="mt-1 flex flex-wrap gap-2">
+                    {% comment %}
+                    Sprint 7 (7.2.1 audit): the `×` glyph previously used
+                    `text-slate-400` unconditionally (flagged as a known
+                    cleanup item in docs/ARCHITECTURE.md's Sprint 6 section)
+                    -- ~2.56:1 against this card's white background in light
+                    mode, well under WCAG AA. Paired with `text-slate-600` /
+                    `dark:text-slate-400`, PRD §9.1's own secondary-text
+                    token, fixes both themes (~7.6:1 light, ~5.7:1 dark).
+                    {% endcomment %}
                     <label class="cursor-pointer" title="No color">
                         <input type="radio" name="color" value="" class="peer sr-only" aria-label="No color" {% if not form.color.value %}checked{% endif %}>
-                        <span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-xs text-slate-400 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:ring-offset-1 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:border-slate-600">&times;</span>
+                        <span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-xs text-slate-600 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:ring-offset-1 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:border-slate-600 dark:text-slate-400">&times;</span>
                     </label>
                     {% for color in form.fields.color.queryset %}
                         <label class="cursor-pointer" title="{{ color.name }}">
@@ -156,17 +165,43 @@ Swap strategy (Sprint 6, htmx-interaction):
             <div class="flex items-center justify-between gap-2 pt-1">
                 <div class="flex gap-2">
                     {% include 'partials/buttons/primary.html' with label='Save' %}
-                    <button
-                        type="button"
-                        {% if form.instance.pk %}
-                            hx-get="{% url 'planner:block-cancel' form.instance.pk %}"
-                        {% else %}
-                            hx-get="{% url 'planner:cell-cancel' %}?day={{ form.day_of_week.value }}&start={{ form.start_time.value }}&end={{ form.end_time.value }}"
-                        {% endif %}
-                        hx-target="closest td"
-                        hx-swap="outerHTML"
-                        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >Cancel</button>
+                    {% if form.instance.pk %}
+                        {% url 'planner:block-cancel' form.instance.pk as cancel_url %}
+                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cancel_url hx_target='closest td' hx_swap='outerHTML' %}
+                    {% else %}
+                        {% comment %}
+                        DTL has no string-concatenation operator, so this
+                        create-mode Cancel URL (base path + day/start/end
+                        query params, previously built as static template
+                        text around `{{ }}` interpolations) has to be
+                        assembled into one `hx_get` variable before it can
+                        be passed into `{% include %}`'s `with` -- chained
+                        `add` filter calls are the only vanilla-DTL way to
+                        do that without a custom template tag (out of
+                        scope: no Python touched by this refactor). Safe
+                        here specifically because the accumulated
+                        left-hand side always starts from a non-numeric
+                        path/query-string prefix, so the filter's
+                        `int(value) + int(arg)` attempt always raises and
+                        it falls through to plain string concatenation at
+                        every step (Django 6.0 `add` filter fallback
+                        behavior, verified via Context7). One side effect:
+                        since this value now flows through a template
+                        *variable* (`{{ hx_get }}` in secondary.html)
+                        rather than static template text, normal
+                        autoescaping renders the `&` separators as
+                        `&amp;` in the HTML source instead of the
+                        previous literal `&`. Browsers decode HTML
+                        entities in attribute values before exposing them
+                        via the DOM, so `element.getAttribute('hx-get')`
+                        (what htmx actually reads) resolves to the same
+                        string either way -- only the raw source bytes
+                        differ, which is correct, standard escaping, not
+                        a behavior change.
+                        {% endcomment %}
+                        {% url 'planner:cell-cancel' as cell_cancel_base %}
+                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' %}
+                    {% endif %}
                 </div>
 
                 {% if form.instance.pk %}

@@ -94,3 +94,62 @@ class TimeBlockForm(forms.ModelForm):
         if user is not None:
             self.instance.user = user
             self.fields['color'].queryset = BlockColor.objects.filter(user=user)
+
+
+class BlockColorForm(forms.ModelForm):
+    """Create/edit form for a single `BlockColor` palette entry (PRD FR-13,
+    Epic E4/US-4.1, 7.1.1-7.1.3).
+
+    Requires a `user` kwarg, set on `self.instance` right here in
+    `__init__` -- the same ordering fix already documented on
+    `TimeBlockForm` above: `ModelForm._post_clean()` calls `instance.
+    full_clean()` during `is_valid()`, which runs *before* any view's
+    `form_valid()`, so `self.instance.user` must already be set by then.
+
+    That alone is *not* sufficient for uniqueness, though (verified
+    empirically, not assumed): because `user` is not one of this form's
+    `Meta.fields`, `ModelForm._get_validation_exclusions()` adds `'user'`
+    to the `exclude` list passed into `instance.full_clean()`, and
+    Django's own docs are explicit that "any unique_together constraint
+    involving an excluded field will also be ignored during validation"
+    -- the same rule applies to a `Meta.constraints` `UniqueConstraint`.
+    Left alone, `BlockColorForm.is_valid()` would return `True` for a
+    genuine duplicate `(user, name)` pair, and `form.save()` would then
+    raise an unhandled `IntegrityError` from the database's own UNIQUE
+    constraint, instead of returning the form fragment with a clean
+    validation error and HTTP 200 (breaking the same contract PRD 6.1.4
+    already establishes for block validation). `clean()` below closes
+    that gap with an explicit, hand-rolled duplicate check -- the same
+    shape `TimeBlock.clean()` already uses for its own user-scoped
+    overlap check, since that same model also can't rely on automatic
+    per-field/`Meta` validation for a check that spans a field excluded
+    from its form.
+    """
+
+    class Meta:
+        model = BlockColor
+        fields = ['name', 'hex_code']
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': INPUT_CLASSES})
+        if user is not None:
+            self.instance.user = user
+
+    def clean(self):
+        """Hand-rolled `(user, name)` uniqueness check -- see the class
+        docstring for why Django's automatic `UniqueConstraint` check
+        can't be relied on here. Excludes `self.instance.pk` so editing a
+        color's own unchanged name is not mistaken for a collision with
+        itself.
+        """
+        cleaned_data = super().clean()
+        name = cleaned_data.get('name')
+        if name and self.instance.user_id:
+            duplicate_qs = BlockColor.objects.filter(user=self.instance.user, name=name)
+            if self.instance.pk:
+                duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
+            if duplicate_qs.exists():
+                raise ValidationError('You already have a color with this name.')
+        return cleaned_data

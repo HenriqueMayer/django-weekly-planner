@@ -6,35 +6,72 @@
 {% block content %}
     {% comment %}
     --- Page header + toolbar (PRD 3.2.1) ---
-    Palette is still an inert placeholder: its views/URLs don't exist
-    until Sprint 7, so it stays a plain disabled <button> rather than a
-    link that would 404. Settings is now live (PRD 4.4.3): a no-JS
-    <details>/<summary> dropdown (PRD §9.2 "Menus/dropdowns") revealing
-    a card panel with the `settings_form` (DashboardView, PRD 4.4.2/4.4.3)
-    posted plainly (no HTMX yet -- that wiring is Sprint 6 scope) to
-    `planner:settings`. The theme toggle already lives in the navbar
-    (templates/partials/navbar.html, #theme-toggle) and is intentionally
-    not duplicated here -- FR-14 only asks for it to be available on
-    every screen.
+    Settings is live (PRD 4.4.3): a no-JS <details>/<summary> dropdown
+    (PRD §9.2 "Menus/dropdowns") revealing a card panel with the
+    `settings_form` (DashboardView, PRD 4.4.2/4.4.3) posted plainly (no
+    HTMX -- that form predates Sprint 6's HTMX wiring and was never
+    brought into scope for it) to `planner:settings`. Palette is now also
+    live (PRD 7.1.1, Sprint 7): the identical no-JS <details>/<summary>
+    card pattern, embedding `palette_panel.html` (`colors`, DashboardView)
+    -- every color CRUD control inside is itself HTMX-driven
+    (`planner/partials/palette_panel.html` and friends), unlike the
+    Settings form above, which stays a plain POST since that predates
+    this sprint and touching it is out of scope here. The theme toggle
+    already lives in the navbar (templates/partials/navbar.html,
+    #theme-toggle) and is intentionally not duplicated here -- FR-14 only
+    asks for it to be available on every screen.
     {% endcomment %}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">My Week</h1>
             <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Your time-blocking grid, Monday through Sunday.</p>
         </div>
-        <div class="flex items-center gap-3">
-            <details class="relative">
-                <summary
-                    class="list-none cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 [&::-webkit-details-marker]:hidden"
-                >Settings</summary>
+        {% comment %}
+        Sprint 7 (7.2.3 responsive audit): `relative` lives on this shared
+        row wrapper, NOT on each individual `<details>` below, and both
+        `<details>` share `name="dashboard-toolbar"`. Two reasons, found by
+        re-deriving the CSS by hand (no Playwright in this environment):
+        1. Each panel below is `absolute right-0`. With `relative` on the
+           *individual* `<details>` (the pre-existing Settings-only
+           behavior), the containing block for that `right-0` is the
+           trigger's own box -- correct when there is exactly one trigger
+           flush against this row's right edge, but wrong now that Settings
+           sits to the *left* of Palette: its panel would anchor to
+           Settings' own right edge (well left of the row's actual right
+           edge) and the full `calc(100vw-2rem)` panel would overflow off
+           the left edge of the viewport at narrow widths. Hoisting
+           `relative` to this wrapper makes both panels resolve `right-0`
+           against the *row's* right edge instead, which -- at every
+           breakpoint here (mobile: this wrapper stretches full width via
+           the parent's default `align-items: stretch` under `flex-col`;
+           `sm:` and up: `sm:justify-between` on the parent pushes this
+           wrapper flush against the container's own right edge) --
+           coincides with the page content's right edge, matching the
+           already-working single-dropdown case exactly, for both triggers.
+        2. Plain `<details>` elements never coordinate with each other, so
+           without `name`, a user could open both Settings and Palette at
+           once, stacking two cards on top of each other. Matching `name`
+           values opt into the HTML living standard's native "exclusive
+           accordion" behavior (opening one auto-closes the other) -- no
+           JS, per NFR-01/§9.2's "no JS menu library" rule. Not confirmed
+           in a real browser (see docs/ARCHITECTURE.md's Playwright gap);
+           older browsers without support for `name` simply keep today's
+           independent-open behavior, so this is a strict improvement with
+           no regression path.
+        {% endcomment %}
+        <div class="relative flex items-center gap-3">
+            <details name="dashboard-toolbar">
+                {% include 'partials/buttons/secondary.html' with as_summary=True label='Settings' %}
 
                 {% comment %}
                 Card pattern (PRD §9.2). Width is a full-bleed
                 `100vw - 2rem` (matching the page's `px-4` gutters) below
                 the `sm` breakpoint so the panel can't overflow a narrow
                 viewport, and a fixed `w-80` at `sm:` and above once
-                there's room. `right-0` keeps it aligned under the
-                summary regardless of the toolbar's flex layout.
+                there's room. `right-0` resolves against the shared row
+                wrapper above (see that comment), not this `<details>`
+                itself, so it stays correctly aligned to the row's right
+                edge regardless of which of the two triggers opened it.
                 {% endcomment %}
                 <div class="absolute right-0 z-20 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700">
                     <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grid settings</h2>
@@ -57,12 +94,28 @@
                     </form>
                 </div>
             </details>
-            <button
-                type="button"
-                disabled
-                title="Color palette — coming soon"
-                class="cursor-not-allowed rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 opacity-50 dark:border-slate-600 dark:text-slate-200"
-            >Palette</button>
+            <details name="dashboard-toolbar">
+                {% include 'partials/buttons/secondary.html' with as_summary=True label='Palette' %}
+
+                {% comment %}
+                Same card pattern (PRD §9.2) as the Settings panel above --
+                same `class` strings, same `absolute right-0 mt-2`
+                positioning (resolved against the shared row wrapper, see
+                its comment above), same responsive width, same
+                `name="dashboard-toolbar"` exclusive-accordion grouping.
+                `palette_panel.html` is the live, HTMX-driven content (PRD
+                7.1.1); this `<details>` wrapper only provides the no-JS
+                toggle chrome around it, exactly as it does for Settings.
+                {% endcomment %}
+                <div class="absolute right-0 z-20 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700">
+                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Color palette</h2>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Reusable colors for your blocks (FR-13).</p>
+
+                    <div class="mt-4">
+                        {% include 'planner/partials/palette_panel.html' with colors=colors %}
+                    </div>
+                </div>
+            </details>
         </div>
     </div>
 
@@ -89,8 +142,15 @@
 {% block extra_body %}
     {% comment %}
     htmx-interaction (Sprint 6): see planner/grid.html's identical block for
-    why this include is scoped here rather than global in base.html.
+    why grid-drag.js/contrast.js are scoped here rather than global in
+    base.html. color-sync.js (Sprint 7, PRD 7.1.1) is scoped here and NOT
+    added to planner/grid.html's identical block, since the palette panel
+    only ever renders inside this page's toolbar dropdown -- the
+    standalone `/planner/` page never embeds `palette_panel.html` (PRD
+    §13's Sprint 7 scope explicitly excludes a standalone palette page),
+    so there is nothing there for this script to pair.
     {% endcomment %}
     <script src="{% static 'js/grid-drag.js' %}"></script>
     <script src="{% static 'js/contrast.js' %}"></script>
+    <script src="{% static 'js/color-sync.js' %}"></script>
 {% endblock %}

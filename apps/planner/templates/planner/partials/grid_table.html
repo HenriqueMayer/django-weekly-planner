@@ -34,6 +34,34 @@ edges rather than the page's. Without a bounded height, this table's own
 the page scrolls past the fold -- not a documented PRD concern, but a
 necessary consequence of giving both a sticky header at the same time.
 
+Sprint 7 (7.2.3 responsive audit) -- two fixes found by re-deriving the
+CSS by hand, no Playwright in this environment:
+1. `table-fixed` + `w-full` inside this `overflow-x-auto` wrapper means
+   the table is always sized to *exactly* the wrapper's width -- it can
+   never overflow it, so the wrapper's horizontal scroll never actually
+   triggers; instead, `table-fixed`'s equal-column-split behavior just
+   squeezes all 7 day columns down to illegibly-thin widths on narrow
+   viewports (NFR-04 wants "readable, scrollable," not "shrunk"). Added
+   `min-w-[760px]` to the `<table>` (below) as a floor -- the 64/80px
+   time column (`w-16 sm:w-20`) plus 7 columns at roughly 100px each,
+   a legible minimum for a block's label plus its hover-control icons --
+   so `overflow-x-auto` now has something to actually scroll below that
+   width, while `w-full` still lets the table grow to fill wider
+   viewports exactly as before.
+2. A `<tr>` (below) can legitimately render with *zero* `<td>`s if all 7
+   of a row's cells are `'occupied'` by rowspans from blocks above (e.g.
+   7 same-time, multi-slot blocks, one per day) -- per the template
+   contract above, an `'occupied'` cell renders nothing at all. Without
+   any `<td>` in that row to enforce the standard slot height, the row's
+   rendered height would fall back to whatever the sticky time-label
+   `<th>` alone needs (its `p-2` padding plus one line of text), likely
+   shorter than the `h-12` every other row/column uses -- desyncing that
+   row's visual height from the `rowspan` geometry every block above and
+   below it assumes. Fixed by adding `h-12` directly to the time-label
+   `<th scope="row">` (below), which always renders regardless of how
+   many (if any) day cells render in that same row -- a guaranteed floor,
+   not a per-row `{% if %}` computed span (PRD R2).
+
 Sprint 6 (htmx-interaction): `id="grid-table"` is the swap target every
 mutating block view (create/edit/delete/resize/repeat-across-days)
 declares via `hx-target="#grid-table" hx-swap="outerHTML"` (see
@@ -68,8 +96,19 @@ top-level placement is the documented, unambiguous case regardless of
     aria-live="polite"
     class="mb-4 rounded-lg px-4 py-3 text-sm ring-1 {% if toast_message %}{% if toast_level == 'error' %}block bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800{% else %}block bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800{% endif %}{% else %}hidden ring-transparent{% endif %}"
 >{{ toast_message }}</div>
-<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
-    <table class="w-full table-fixed border-collapse text-xs sm:text-sm">
+{% comment %}
+Sprint 7 (htmx-interaction): `{% if grid_oob %}hx-swap-oob="true"{% endif %}`
+below lets this same partial serve two roles: the Sprint 6 primary swap
+target for block-mutating views (which never pass `grid_oob`, so the
+attribute is simply absent and this behaves exactly as before), and an
+out-of-band refresh alongside `palette_panel.html` for color CRUD
+responses (`_render_palette_response()`, apps/planner/views.py passes
+`grid_oob: True`) -- a color rename/recolor/delete can change how
+existing blocks render, so the grid needs to refresh in the same
+response, not just on a later full page load.
+{% endcomment %}
+<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+    <table class="w-full min-w-[760px] table-fixed border-collapse text-xs sm:text-sm">
         <thead>
             <tr>
                 <th scope="col" class="sticky top-0 left-0 z-20 w-16 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 sm:w-20"></th>
@@ -81,7 +120,7 @@ top-level placement is the documented, unambiguous case regardless of
         <tbody>
             {% for row in week_grid.rows %}
                 <tr>
-                    <th scope="row" class="sticky left-0 z-10 border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ row.label }}</th>
+                    <th scope="row" class="sticky left-0 z-10 h-12 border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ row.label }}</th>
                     {% for cell in row.cells %}
                         {% if cell.kind == 'block-start' %}
                             {% include 'planner/partials/block_cell.html' with cell=cell %}

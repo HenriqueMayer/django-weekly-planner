@@ -1,0 +1,55 @@
+{% comment %}
+Shared "Secondary button" component (PRD §9.2 "Secondary button" pattern),
+the sibling of `primary.html`. Extracted this sprint once a 6th call site
+(across 5 templates) reached the threshold `docs/ARCHITECTURE.md` already
+flagged as the trigger for this (NFR-05/R5).
+
+Three modes, picked by which variables are passed:
+- `as_summary=True` -- renders a `<summary>` (a `<details>` dropdown
+  trigger, e.g. the dashboard toolbar). Neither a link nor a button.
+- `href` present (and not `as_summary`) -- renders `<a href>`.
+- Neither -- renders `<button type="{{ button_type|default:'button' }}">`
+  (pass `button_type='submit'` for a submit button inside a plain POST
+  `<form>`). Optional `hx_get`/`hx_target`/`hx_swap` context variables
+  render as the matching `hx-*` attributes when present -- named,
+  auto-escaped Django variables, not a raw attribute-string escape
+  hatch, so there is no `|safe`/`{% autoescape off %}` anywhere in this
+  file and no injection surface even if a value were ever dynamic (it
+  never is today -- every current call site passes a resolved, static
+  string, the same way `primary.html`'s `href` usage note already
+  requires for `{% url %}` results).
+
+Usage (link) -- `{% url %}` can't be passed inline to `with`, so resolve
+it to a variable first, same as `primary.html`'s own usage note:
+    {% url 'accounts:login' as login_url %}
+    {% include 'partials/buttons/secondary.html' with href=login_url label='Log in' %}
+
+Usage (submit button inside a plain POST <form>):
+    {% include 'partials/buttons/secondary.html' with label='Logout' button_type='submit' %}
+
+Usage (button with HTMX attributes -- resolve `{% url %}` to a variable
+first, same reason as `href` above):
+    {% url 'planner:cell-cancel' as cancel_url %}
+    {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cancel_url hx_target='closest td' hx_swap='outerHTML' %}
+
+Usage (`<details>` trigger):
+    {% include 'partials/buttons/secondary.html' with as_summary=True label='Settings' %}
+
+`label` must be plain text, same constraint as `primary.html`.
+{% endcomment %}
+{% if as_summary %}
+    <summary class="list-none cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 [&::-webkit-details-marker]:hidden">{{ label }}</summary>
+{% elif href %}
+    <a
+        href="{{ href }}"
+        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+    >{{ label }}</a>
+{% else %}
+    <button
+        type="{{ button_type|default:'button' }}"
+        {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
+        {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
+        {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+    >{{ label }}</button>
+{% endif %}
