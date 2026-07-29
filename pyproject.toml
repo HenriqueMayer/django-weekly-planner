@@ -12,6 +12,10 @@ dependencies = [
 dev = [
     "ruff>=0.16.0",
 ]
+docker = [
+    "gunicorn>=26.0.0",
+    "whitenoise>=6.12.0",
+]
 
 [tool.ruff]
 line-length = 99

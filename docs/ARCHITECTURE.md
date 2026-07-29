@@ -16,6 +16,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 6 — Block Interactivity (HTMX + Vanilla JS): complete.**
 **Sprint 7 — Color Palette, Theming & UX Polish: complete.**
 **Sprint 8 — Automated Tests: complete.**
+**Sprint 9 — Docker, Documentation & Open-Source Template Release: complete (except 9.3.2, deliberately withheld).**
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -32,8 +33,13 @@ delete, HTMX-driven, from a second dashboard-toolbar dropdown) — deleting a co
 clears affected blocks to the neutral fallback appearance in the same response, not just
 eventually. A dark/light and responsive audit pass fixed several real contrast and layout bugs
 across both old and new screens, and `ruff` is now configured as a dev-only lint tool. The
-project now also has a real, permanent automated test suite (82 tests: models, views, and the
-pure-Python grid builder) that passes clean from a fresh clone with no ordering dependencies. See
+project has a real, permanent automated test suite (82 tests: models, views, and the pure-Python
+grid builder) that passes clean from a fresh clone with no ordering dependencies — and now also
+runs identically inside a Docker container. The project can now be built and run with
+`docker compose up` alone (SQLite persisted in a named volume, static files served by WhiteNoise,
+no separate nginx), and has a rewritten `README.md`, a new `CONTRIBUTING.md`, and an MIT
+`LICENSE`, making it ready to serve as a public open-source template — everything except actually
+tagging and publishing it (9.3.2), which is withheld this session by explicit instruction. See
 §13 in the PRD for the full sprint plan and checklist.
 
 ---
@@ -44,11 +50,20 @@ pure-Python grid builder) that passes clean from a fresh clone with no ordering 
 django-weekly-planner/
 ├── manage.py
 ├── pyproject.toml          # uv-managed; django>=6.0.7 is the sole runtime dependency;
-│                           # ruff lives in [dependency-groups].dev (Sprint 7, 7.3.1)
+│                           # ruff lives in [dependency-groups].dev (Sprint 7, 7.3.1);
+│                           # gunicorn/whitenoise live in [dependency-groups].docker (Sprint 9)
 ├── uv.lock
 ├── .python-version         # 3.12
-├── .env.example
+├── .env.example            # Sprint 9: notes docker-compose.yml also reads this file
 ├── .gitignore
+├── Dockerfile              # Sprint 9: python:3.12-slim, uv sync, collectstatic at build time,
+│                           # migrate + gunicorn at container start
+├── docker-compose.yml      # Sprint 9: one `web` service, sqlite_data volume, optional env_file
+├── .dockerignore           # Sprint 9
+├── CONTRIBUTING.md         # Sprint 9: add-an-app / swap tokens / grid defaults / SQLite limits
+├── LICENSE                 # Sprint 9: MIT
+├── assets/
+│   └── preview.svg         # pre-existing concept sketch, embedded in README (Sprint 9)
 ├── config/                 # settings package (see "Deviations" below)
 │   ├── settings.py
 │   ├── urls.py
@@ -736,42 +751,137 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Docker & release readiness (Sprint 9)
+
+- **`Dockerfile`**: `python:3.12-slim`. `uv` itself is installed by copying its prebuilt binary
+  from `ghcr.io/astral-sh/uv` (the current Context7-confirmed approach), pinned to the version
+  used to develop this project. Dependencies install in two layers for cache efficiency:
+  `uv sync --locked --no-dev --group docker --no-install-project` (deps only, before `COPY . .`)
+  then a second `uv sync ... ` after the app code is copied in. `--no-dev` excludes the `dev` group
+  (`ruff`) and `--group docker` adds a **new** `[dependency-groups]` entry
+  (`gunicorn`, `whitenoise`) — the same "tooling that isn't needed by the shipped app itself"
+  pattern Sprint 7 established for `ruff`, so the main `dependencies` list in `pyproject.toml`
+  stays at exactly one entry (`django`) even after this sprint. `collectstatic --noinput
+  --ignore=input.css` runs at **build time** (static files are baked into the image); the
+  `--ignore` flag is load-bearing, not defensive over-caution — `code-reviewer` reproduced the
+  exact `whitenoise.storage.MissingFileError` it prevents by running `collectstatic` without it
+  (the raw, uncompiled Tailwind v4 source file contains a bare `@import 'tailwindcss'` that
+  WhiteNoise's manifest post-processor otherwise tries and fails to resolve as a relative file
+  path). `migrate --noinput` runs at container **start**, not build time, via a one-line inline
+  `CMD` (`sh -c 'python manage.py migrate --noinput && gunicorn ...'`) — it depends on the
+  runtime-mounted volume, which may not exist on a first run; a separate `entrypoint.sh` file for
+  one `&&` would be unnecessary ceremony (NFR-01).
+- **Static files, no separate web server**: WhiteNoise serves the collected static files directly
+  from the same gunicorn process — no nginx/reverse proxy container (NFR-01). Wiring is
+  **conditional**, not unconditional: `config/settings.py` only inserts
+  `whitenoise.middleware.WhiteNoiseMiddleware` into `MIDDLEWARE` (right after `SecurityMiddleware`,
+  Context7-confirmed placement) and sets the `STORAGES['staticfiles']['BACKEND']` to
+  `whitenoise.storage.CompressedManifestStaticFilesStorage` when a `DJANGO_USE_WHITENOISE` env var
+  is set — which only the Dockerfile sets. Since `whitenoise` lives only in the `docker`
+  dependency-group, a plain local `uv sync` never installs it at all; an unconditional `MIDDLEWARE`
+  entry would break local `manage.py check`/`runserver` the moment Django tried to import an
+  uninstalled module. `code-reviewer` independently confirmed (via Context7) that `uv sync` only
+  pulls in the `dev` group by default, so this conditional split is necessary, not paranoia.
+- **SQLite persistence**: the significant deviation this sprint. PRD 9.1.2 says "volume for SQLite
+  file," which reads naturally as mounting a named volume directly onto `db.sqlite3`. That was
+  tried first and **fails outright** on this environment's Docker daemon with
+  `"<path> is not directory"` on first container creation — reproduced independently by the
+  implementing agent, this session, and `code-reviewer` (three times, including with a trivial
+  one-file test image), so it's a genuine Docker/overlay2 limitation with named volumes mounted
+  onto a single file, not a Dockerfile mistake. Fixed by mounting the volume onto a **directory**
+  instead (`sqlite_data:/app/data`) and adding a `SQLITE_DB_PATH` environment variable that
+  `config/settings.py`'s `DATABASES['default']['NAME']` reads, falling back to the original
+  `BASE_DIR / 'db.sqlite3'` when unset — local development is completely unaffected; only the
+  Dockerfile sets `SQLITE_DB_PATH=/app/data/db.sqlite3`. Persistence (a user survives
+  `docker compose down` → `up`, without `-v`) was verified end-to-end, independently, three
+  separate times (implementing agent, this session, `code-reviewer`).
+- **`docker-compose.yml`**: one `web` service (`build: .`), host port **8010** (8000 was already
+  occupied locally by a dev `runserver` — verified free before choosing it; change it in this file
+  if 8000 is free on your machine), `env_file: - path: .env / required: false` (the Compose
+  long-form syntax that lets `docker compose up` still work on a fresh clone with no `.env` yet,
+  falling back to `settings.py`'s dev-safe defaults — confirmed current, non-deprecated syntax via
+  Context7), and the `sqlite_data` named volume described above. No other services — no nginx, no
+  Celery, no Redis; NFR-01 applies to the deployment topology just as much as the application code.
+- **Verification chain** (PRD 9.1.3 and 9.3.1): `django-backend` built the whole stack and verified
+  it itself (build → up → migrate confirmation → static-file curl checks with correct
+  `Content-Type` → SQLite persistence test → down). This session then independently repeated the
+  exact same cycle from scratch and got identical results. `qa-tester` then ran the **full 82-test
+  suite inside the running container** (`docker compose exec web python manage.py test` — 82/82
+  pass, matching the local result exactly) plus a full manual HTTP-level regression checklist
+  against the live container: signup → auto-login → dashboard (with the `PlannerSettings` signal
+  firing), login/logout, a complete block CRUD cycle (create → edit → resize → delete) and a
+  complete color CRUD cycle via real HTTP requests (not ORM shortcuts), overlap rejection with
+  DB-state confirmation that no phantom row was created, touching-blocks-still-allowed, `SET_NULL`
+  on color deletion, the `grid_oob` out-of-band contract, and static-file serving scrutinized
+  specifically (real response headers: `Content-Type`, `Cache-Control`, `ETag`). `code-reviewer`
+  then ran an independent third full build/up/test/down cycle of its own, cross-checked
+  `CONTRIBUTING.md`'s claims against the actual `apps/planner/models.py`/`apps/planner/apps.py`
+  code, and found zero blocking issues.
+- **One real gap found and fixed**: `qa-tester` noticed the README's Docker quickstart didn't warn
+  that the no-`.env` default (`DEBUG=True`, empty `ALLOWED_HOSTS`) is dev-only — verified concretely
+  (a bad URL served Django's verbose debug 404/traceback page, `SECRET_KEY` correctly redacted by
+  Django's own exception filter but the rest of the traceback fully exposed). A warning was added
+  to the README. `code-reviewer`'s independent pass then caught that the warning's own wording
+  ("...before building") was itself wrong — `DEBUG`/`ALLOWED_HOSTS` are read from the environment
+  at container **start**, not baked in at `docker compose build` time, confirmed by writing a new
+  `.env` against an already-built image and observing the behavior change on `up` alone with no
+  rebuild — and that the same paragraph didn't mention replacing the public repo's insecure
+  fallback `SECRET_KEY`. Both fixed directly in the same paragraph.
+- **Deliberately deferred, not fixed this sprint**: `code-reviewer` suggested the container run as
+  a non-root user (currently `root`, no `USER` directive) as a hardening step appropriate for a
+  public reference template. Not a PRD requirement, and not attempted this sprint — the named
+  volume's default root ownership would need matching UID/GID handling to avoid a SQLite
+  write-permission regression, which is real additional scope beyond a one-line fix. Worth
+  revisiting alongside a future `v1.0.0` hardening pass, not before.
+- **`README.md`/`CONTRIBUTING.md`/`LICENSE`**: README gained a features list, tech-stack table,
+  condensed project-structure tree, the Docker quickstart above, and a design-tokens summary table
+  (all cross-linking to the PRD/this document for full detail rather than duplicating it wholesale
+  — the existing Tailwind-pipeline and "Running tests" sections were left as-is). `CONTRIBUTING.md`
+  is new: how to add a Django app, how to change the *design-system* tokens (Tailwind classes in
+  the already-extracted shared partials) versus the unrelated *per-user* `BlockColor` runtime
+  palette feature, how to change `PlannerSettings`' per-field defaults for new users, and how to
+  swap SQLite for another engine (no code depends on SQLite specifically; every query goes through
+  the ORM). `LICENSE` is MIT — PRD 9.2.3 only specifies "open-source," so this is a reasonable,
+  easily-changed-later default for a template meant to be maximally reusable, not a considered
+  legal decision. The pre-existing `assets/preview.svg` (a hand-drawn concept sketch, not app
+  output) is now embedded in the README, explicitly labeled as a concept sketch rather than a live
+  screenshot, since no browser-screenshot tooling exists in this environment (same root cause as
+  the Playwright gap below).
+- **9.3.2 (tag `v1.0.0`, publish) intentionally not done**: requires `git tag`/`git push`, and this
+  entire session operates under a hard standing "never commit or push" instruction. This is the
+  one remaining PRD checklist item, withheld pending explicit user authorization — not an
+  oversight.
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
   not configured in this environment. Auth, landing/dashboard, planner settings, the read-only
-  grid, every block-interactivity flow, and now every palette CRUD flow have all been verified via
-  Django's test client (status codes, redirect targets, response headers including
-  `HX-Retarget`/`HX-Reswap`, response body assertions, DB-state checks, and HTML structure parsing)
-  and every template's class strings were spot-checked/hand-verified for contrast against PRD §9,
-  but nothing has been rendered in a real browser — no visual layout, hover/focus states,
-  dark-mode flash, or responsive breakpoint check has been done. The pointer-drag gesture in
-  `static/js/grid-drag.js` (Sprint 6) still has never been exercised at all; this sprint adds a
-  second, analogous gap of the same shape — **`static/js/color-sync.js`'s bidirectional pairing
-  between a native `<input type="color">` and the hex text field has never been exercised in a real
-  DOM either**, only reasoned through by reading its source. Six concrete, still-unconfirmed
-  layout/interaction questions are now stacked up: the auth pages' `min-h-screen` centered card
-  possibly not fitting one viewport (Sprint 3), the settings `<details>` dropdown's
-  `absolute`-positioned panel possibly clipping at narrow widths (Sprint 4), whether an 18+ row grid
-  table at `max-h-[75vh]` produces an awkward nested-scrollbar experience (Sprint 5), the entire
-  drag-to-resize gesture plus the hover-controls' `group-hover`/`focus-within` show/hide behavior
-  and the `contrast.js` luminance rule's visual correctness (Sprint 6), and now both
-  `color-sync.js`'s actual picker/text-field sync and whether the two dashboard toolbar `<details>`
-  dropdowns' hand-reasoned positioning/exclusive-accordion fix actually holds up next to each other
-  in a real viewport (Sprint 7). Run `claude mcp add playwright -- npx @playwright/mcp@latest`
-  **before Sprint 9** — this gap is now six sprints deep and has not been shrinking, only
-  accumulating one or two new unconfirmed surfaces per sprint. Sprint 8's 82 new automated tests
-  do not close this gap at all: they run entirely through Django's test `Client` (a simulated
-  request/response cycle with no real browser, no rendering, no JS execution), so they can and do
-  verify status codes, headers, DB state, and response-body substrings, but nothing about how any
-  of this actually looks or behaves once painted and scripted in a real browser.
-- **No Docker.** Deliberately deferred to Sprint 9 per the PRD. (Automated tests, formerly listed
-  here alongside Docker, are no longer a gap — see the Sprint 8 section above.)
+  grid, every block-interactivity flow, every palette CRUD flow, and now the containerized
+  deployment have all been verified via Django's test client or direct HTTP requests (status
+  codes, redirect targets, response headers including `HX-Retarget`/`HX-Reswap`, response body
+  assertions, DB-state checks, and HTML structure parsing) and every template's class strings were
+  spot-checked/hand-verified for contrast against PRD §9, but nothing has been rendered in a real
+  browser — no visual layout, hover/focus states, dark-mode flash, or responsive breakpoint check
+  has been done. The pointer-drag gesture in `static/js/grid-drag.js` (Sprint 6) and
+  `static/js/color-sync.js`'s bidirectional color-picker/hex-field pairing (Sprint 7) have still
+  never been exercised in a real DOM, only reasoned through by reading their source. Run
+  `claude mcp add playwright -- npx @playwright/mcp@latest` at the next opportunity — this gap is
+  now seven sprints deep and has not been shrinking, only accumulating. Sprint 9's Docker work does
+  **not** close this gap either: it proves the app runs identically in a container (same 82/82
+  tests, same HTTP contract), which is orthogonal to whether anything actually looks or behaves
+  correctly once painted and scripted in a real browser.
 - **No CI pipeline.** `manage.py test` and `ruff check` are both clean and documented as the
-  commands to run, but nothing runs them automatically on push/PR yet — no `.github/workflows/`
-  or equivalent exists. Not a PRD requirement for Sprint 8 (8.4.1 only asks that the suite itself
-  "runs clean from a fresh clone," which is verified), but worth flagging as the natural next step
-  once Sprint 9's Docker work lands, so a real CI job has something to build/run inside.
+  commands to run, and now also verified to pass identically inside the Docker image, but nothing
+  runs them automatically on push/PR yet — no `.github/workflows/` or equivalent exists. Now that
+  Sprint 9's Docker image exists, a CI job has a natural, ready-made thing to build and test
+  inside — this is the most natural remaining next step, but it is not a PRD requirement for any
+  sprint through 9 and was not attempted.
+- **Container runs as root.** No `USER` directive in the `Dockerfile`. Not a PRD requirement and
+  not a regression (nothing in this project ever ran differently), but flagged by `code-reviewer`
+  as worth revisiting for a public reference template — see the Sprint 9 section above for why it
+  wasn't attempted this sprint (named-volume ownership complications).
 
 ---
 

@@ -1,0 +1,44 @@
+# Local virtual environment and package caches — the image builds its own
+# venv via `uv sync`; shipping the host's .venv would bloat the build
+# context and can leak a host-specific interpreter/ABI into the image.
+.venv/
+.uv-cache/
+
+# Version control
+.git/
+.gitignore
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local-only data and secrets — never bake these into the image.
+db.sqlite3
+db.sqlite3-journal
+.env
+.env.*
+!.env.example
+
+# Static build output — collected fresh at image build time.
+staticfiles/
+
+# Tailwind standalone CLI binary (~100MB, per-machine download, not source).
+bin/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude / docs tooling not needed inside the image
+.claude/
+docs/
+assets/

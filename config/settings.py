@@ -95,10 +95,19 @@ LOGOUT_REDIRECT_URL = 'core:landing'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# Defaults to the repo-root file used by local development. The Docker image
+# overrides this via the `SQLITE_DB_PATH` environment variable to a path
+# inside a dedicated, volume-mounted directory (`/app/data/db.sqlite3`) —
+# see docker-compose.yml. A *directory* is mounted rather than the file
+# itself: named-volume mounts directly onto a single file path were tested
+# against this project's Docker daemon and fail outright with
+# "<path> is not directory" on first creation (reproduced even with a
+# trivial one-file image), so the file lives inside a mounted directory
+# instead.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': Path(os.environ.get('SQLITE_DB_PATH', BASE_DIR / 'db.sqlite3')),
     }
 }
 
@@ -142,3 +151,27 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+
+# Collected here at Docker build time (`collectstatic`) so static files are
+# baked into the image; local development never writes to this directory
+# and serves straight from STATICFILES_DIRS instead.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise serves collected static files directly from the container with
+# no separate nginx/reverse proxy (NFR-01, PRD 9.1.1). `whitenoise` is a
+# Docker-only dependency (see the `docker` group in pyproject.toml, not the
+# main `dependencies` list), so it is only wired into MIDDLEWARE/STORAGES
+# when explicitly enabled via this flag — the Dockerfile sets
+# `DJANGO_USE_WHITENOISE=True`; local development leaves it unset and keeps
+# using Django's own static file handling without needing the package
+# installed at all.
+if os.environ.get('DJANGO_USE_WHITENOISE', 'False') == 'True':
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+    STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        },
+    }

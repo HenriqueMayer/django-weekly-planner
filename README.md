@@ -1,5 +1,55 @@
 # django-weekly-planner
+
 A modular, time-blocking weekly planner template built with Python, Django, and CSS Grid. Organize your routine like a spreadsheet.
+
+![Concept preview](assets/preview.svg)
+
+> The image above is the original pre-development concept sketch (day-of-week columns, time-slot rows, free-form colored blocks) — it predates the implementation and isn't a live screenshot. No browser-screenshot tooling was available while building this template, so no rendered screenshots are included yet; see `docs/ARCHITECTURE.md`'s "Known, expected gaps" section.
+
+## Features
+
+- **Free-form time blocks.** Click any empty grid cell and type anything — no fixed labels, no mandatory categories.
+- **Vertical resize (merge).** Drag a block's edge, or use the +/- keyboard fallback, to span multiple consecutive time slots.
+- **Repeat across days.** Create a block once and copy it to other days in the same request; days where it would overlap are skipped and reported, not silently dropped.
+- **Personal color palette.** Name + hex colors you manage yourself; deleting a color leaves affected blocks with a neutral fallback appearance instead of breaking anything.
+- **Zero full-page reloads.** Every block/color/settings operation is an HTMX partial swap.
+- **Light/dark theme**, persisted per browser, honored on every screen.
+- **Configurable grid**: 30 or 60-minute slots, any day-start/day-end range (including a range that crosses midnight), 24h or 12h AM/PM display.
+- **Native Django auth** — no extra auth package.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Language / framework | Python 3.12+, Django 6.0 |
+| Templates | Django Template Language, server-rendered |
+| Styling | TailwindCSS v4 (standalone CLI, no Node.js) |
+| Interactivity | HTMX + a small amount of Vanilla JS (drag-to-resize, theme toggle, color-hex sync, text-contrast) |
+| Database | SQLite (single file) |
+| Auth | `django.contrib.auth` (native) |
+| Dependency management | [`uv`](https://docs.astral.sh/uv/) |
+
+See `docs/ProductRequirementDocument.md` for the full spec and `docs/ARCHITECTURE.md` for how the codebase actually turned out sprint by sprint, including every deliberate deviation from the spec.
+
+## Project structure
+
+```
+django-weekly-planner/
+├── manage.py
+├── pyproject.toml       # uv-managed; django is the only runtime dependency
+├── Dockerfile
+├── docker-compose.yml
+├── config/              # settings.py, urls.py, wsgi.py, asgi.py
+├── apps/
+│   ├── core/             # landing page, dashboard shell, TimestampedModel
+│   ├── accounts/         # native signup/login/logout
+│   └── planner/          # BlockColor/PlannerSettings/TimeBlock models, grid builder, HTMX views
+├── templates/            # base.html + shared partials (navbar, footer, buttons, form fields)
+├── static/               # css/ (Tailwind source + compiled output), js/
+└── db.sqlite3            # gitignored; created by `migrate`
+```
+
+Full breakdown of every file's purpose lives in `docs/ARCHITECTURE.md`'s "Directory layout" section.
 
 ## Development
 
@@ -8,6 +58,7 @@ A modular, time-blocking weekly planner template built with Python, Django, and 
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/) for dependency management
 - No Node.js / npm required — CSS is built with the Tailwind **standalone CLI** binary (PRD risk R4).
+- Optionally, Docker + the Compose plugin, if you'd rather not install Python/uv locally at all (see "Run with Docker" below).
 
 ### Backend
 
@@ -67,4 +118,56 @@ Minify for a production build:
 uv run python manage.py test
 ```
 
-Runs the full suite (models, views, and the pure-Python grid builder) against Django's own throwaway test database — nothing here depends on `db.sqlite3` or any seeded data, so this passes clean from a fresh clone right after `uv sync` + `migrate`.
+Runs the full suite (models, views, and the pure-Python grid builder) against Django's own throwaway test database — nothing here depends on `db.sqlite3` or any seeded data, so this passes clean from a fresh clone right after `uv sync` + `migrate`. Verified to pass identically under `--shuffle`, `--reverse`, and `--parallel 4` — no test-ordering or shared-state dependency.
+
+### Run with Docker
+
+No local Python/`uv` install needed — only Docker and the Compose plugin.
+
+```sh
+cp .env.example .env   # optional; the app boots with dev-safe defaults even without it
+docker compose build
+docker compose up -d
+```
+
+> **Dev-only defaults.** Without a `.env` file, the container runs with `DEBUG=True` and an empty
+> `ALLOWED_HOSTS` — fine for a quick local look, but that means verbose debug tracebacks are
+> served to anyone who can reach it. Before exposing this container beyond `localhost`, set
+> `DEBUG=False` and a real, non-empty `ALLOWED_HOSTS` in `.env`.
+
+This builds a `python:3.12-slim` image (dependencies installed via `uv`, static files collected at build time, served by WhiteNoise — no separate nginx needed), then on container start runs `manage.py migrate` before starting `gunicorn`. The app is reachable at **http://localhost:8010** (port 8000 is left free for a local `runserver`; change the host-side port in `docker-compose.yml` if you'd like it on 8000 instead).
+
+The SQLite database lives in a named Docker volume (`sqlite_data`, mounted at `/app/data` in the container) so your data survives `docker compose down`/`up` — use `docker compose down -v` if you actually want to wipe it.
+
+```sh
+docker compose logs -f web      # follow startup/request logs
+docker compose exec web python manage.py createsuperuser
+docker compose exec web python manage.py test   # run the test suite inside the container
+docker compose down             # stop (keeps the sqlite_data volume)
+```
+
+For a production-like run (hashed, far-future-cacheable static file URLs), set `DEBUG=False` and a non-empty `ALLOWED_HOSTS` in `.env`, then `docker compose up -d` — no rebuild needed, since these are read from the environment at container start, not baked into the image. Also replace the fallback `SECRET_KEY` (see `.env.example`'s own guidance) — it ships in this public repository and must never be used as-is outside local development.
+
+## Design system
+
+Full token table and component patterns are documented in `docs/ProductRequirementDocument.md` §9 and mirrored in `static/css/input.css`'s header comment. Summary:
+
+| Token | Light | Dark | Usage |
+|---|---|---|---|
+| Primary | `indigo-600` | `indigo-400` | Buttons, links, active states |
+| Primary gradient | `from-indigo-600 to-violet-600` | `from-indigo-500 to-violet-500` | Hero, primary CTAs, navbar brand |
+| Surface | `white` / `slate-50` | `slate-900` / `slate-800` | Page and card backgrounds |
+| Grid lines | `slate-200` | `slate-700` | Table/grid borders |
+| Text | `slate-900` / `slate-600` | `slate-100` / `slate-400` | Headings / secondary text |
+| Success | `emerald-500` | `emerald-400` | Confirmation states |
+| Danger | `rose-600` | `rose-500` | Delete actions, validation errors |
+
+Every screen extends one `templates/base.html`; shared buttons/form-field/grid partials keep class strings from drifting between screens (see `docs/ARCHITECTURE.md`'s "Design system" section for the extraction history and a couple of deliberate, documented exceptions).
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new app, swap the color palette/design tokens, change the default grid settings, and switch off SQLite.
+
+## License
+
+[MIT](LICENSE).

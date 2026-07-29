@@ -1,0 +1,33 @@
+services:
+  web:
+    build: .
+    # Host port 8000 is already used by a local `runserver` process in this
+    # dev environment, so the container is published on 8010 instead
+    # (verified free via `ss -tln` before choosing it).
+    ports:
+      - '8010:8000'
+    env_file:
+      # A fresh clone has no `.env` until `cp .env.example .env` is run (see
+      # README). `required: false` (Compose Spec env_file long syntax) lets
+      # `docker compose up` proceed with settings.py's dev-safe fallbacks
+      # instead of hard-failing on a missing file — verified empirically
+      # against this environment's Compose version.
+      - path: .env
+        required: false
+    volumes:
+      # Named volume mounted onto the dedicated directory holding
+      # db.sqlite3 (config/settings.py DATABASES NAME, via SQLITE_DB_PATH)
+      # so the database persists across `docker compose down`/`up` without
+      # shadowing the rest of /app (the image's own code and virtual
+      # environment). Nothing else is volume-mounted.
+      #
+      # Deviation: mounted onto the *directory*, not the db.sqlite3 file
+      # itself. A direct file mount was tried first and fails on this
+      # Docker daemon with "<path> is not directory" on first creation
+      # (reproduced even with a trivial one-file test image) — a known
+      # class of Docker/overlay2 limitation with named volumes on single
+      # files, not something fixable from the Compose/Dockerfile side.
+      - sqlite_data:/app/data
+
+volumes:
+  sqlite_data:
