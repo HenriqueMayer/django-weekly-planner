@@ -15,6 +15,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 5 — Grid Rendering (Server-Side): complete.**
 **Sprint 6 — Block Interactivity (HTMX + Vanilla JS): complete.**
 **Sprint 7 — Color Palette, Theming & UX Polish: complete.**
+**Sprint 8 — Automated Tests: complete.**
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -30,8 +31,10 @@ zero full-page reloads. Users now also maintain a personal color palette (create
 delete, HTMX-driven, from a second dashboard-toolbar dropdown) — deleting a color immediately
 clears affected blocks to the neutral fallback appearance in the same response, not just
 eventually. A dark/light and responsive audit pass fixed several real contrast and layout bugs
-across both old and new screens, and `ruff` is now configured as a dev-only lint tool. See §13 in
-the PRD for the full sprint plan and checklist.
+across both old and new screens, and `ruff` is now configured as a dev-only lint tool. The
+project now also has a real, permanent automated test suite (82 tests: models, views, and the
+pure-Python grid builder) that passes clean from a fresh clone with no ordering dependencies. See
+§13 in the PRD for the full sprint plan and checklist.
 
 ---
 
@@ -56,12 +59,14 @@ django-weekly-planner/
 │   │   ├── models.py         # abstract TimestampedModel
 │   │   ├── views.py          # LandingView, DashboardView (both plain TemplateView)
 │   │   ├── urls.py           # app_name = 'core'
+│   │   ├── tests.py          # Sprint 8: 4 tests (landing anon/auth, dashboard auth-gate+context)
 │   │   └── templates/core/   # landing.html (hero/features/grid-mock — Sprint 3),
 │   │                         # dashboard.html (header/toolbar/real grid — Sprint 3-5)
 │   ├── accounts/             # native auth — Sprint 2
 │   │   ├── forms.py           # SignUpForm, LoginForm (shared INPUT_CLASSES)
 │   │   ├── views.py           # SignUpView(CreateView)
 │   │   ├── urls.py            # app_name = 'accounts'; login/, signup/, logout/
+│   │   ├── tests.py           # Sprint 8: 5 tests (signup, login success/failure, logout)
 │   │   └── templates/accounts/  # login.html, signup.html
 │   └── planner/               # domain models/settings — Sprint 4; grid — Sprint 5; CRUD — Sprint 6
 │       ├── models.py           # BlockColor, PlannerSettings, TimeBlock (all TimestampedModel);
@@ -79,6 +84,10 @@ django-weekly-planner/
 │       │                       # ColorDeleteView (all LoginRequiredMixin)
 │       ├── urls.py             # app_name = 'planner'; '' (grid), settings/, blocks/*,
 │       │                       # cells/cancel/, colors/* (Sprint 7)
+│       ├── tests/              # Sprint 8: package, not a flat tests.py (3 distinct concerns)
+│       │   ├── test_models.py   # 26 tests — duration/rowspan/clean()/overlap/hex/unique/SET_NULL/signal
+│       │   ├── test_views.py    # 39 tests — auth, ownership isolation, CRUD/resize, grid_oob, settings
+│       │   └── test_grid.py     # 8 tests — build_week_grid() matrix, SimpleTestCase, no DB
 │       └── templates/planner/
 │           ├── settings_form.html    # standalone settings page (Sprint 4)
 │           ├── grid.html             # standalone grid page (Sprint 5); loads grid-drag.js/
@@ -661,6 +670,72 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Automated tests (Sprint 8)
+
+- **Structure**: `apps/planner/tests/` is a package (`test_models.py`, `test_views.py`,
+  `test_grid.py`), not a flat `tests.py` — the old stub file was deleted in favor of it. Judged
+  proportionate, not NFR-01 over-engineering: it's a straight file split with zero new
+  abstractions, mapping 1:1 onto PRD §13's own 8.1/8.2/8.3 subdivision (model validation via
+  `TestCase`, HTTP view contracts via `TestCase`, pure-function grid math via `SimpleTestCase`),
+  each landing at a reasonable 170-570 lines rather than one ~1050-line file mixing three
+  genuinely distinct concerns. `apps/core/tests.py` and `apps/accounts/tests.py` stay flat
+  (4 and 5 tests respectively) — correctly, since neither app's test surface is large enough to
+  need splitting.
+- **82 tests total, all passing**: 26 model tests (PRD 8.1), 39 view tests (PRD 8.2), 8 grid
+  builder tests (PRD 8.3), plus core's 4 and accounts' 5. `uv run python manage.py test`,
+  `ruff check apps/`, `manage.py check`, and `makemigrations --check --dry-run` are all clean.
+- **Model tests** (`test_models.py`) cover `TimeBlock.get_duration_minutes()`/`get_rowspan()`
+  (including the round-half-up 90-minute case and the documented `00:00`-to-`00:00` full-day
+  edge case from the Sprint 4 section above — asserted as valid, not an error), `clean()`'s
+  start/end rule, same-user/same-day overlap rejection with touching-blocks-allowed and
+  self-exclusion-on-update, `BlockColor`'s hex validator and `(user, name)` `UniqueConstraint`,
+  `SET_NULL` on color deletion, and the `PlannerSettings` auto-creation signal (defaults, and
+  no duplicate row on a second `save()`).
+- **View tests** (`test_views.py`) cover: auth protection swept across all 14 planner/dashboard
+  routes via one parametrized `subTest`; ownership isolation on every pk-taking block/color
+  endpoint (9 tests, each asserting both the 404 *and* that the underlying row is untouched, not
+  just the status code — matching this codebase's own "404, never 403" convention documented in
+  the Sprint 6 section above); the full block/color CRUD + resize success/failure contract,
+  including the `HX-Retarget`/`HX-Reswap` fixed-id behavior, the keyboard `+/-` resize fallback,
+  and day-range clamping; the `repeat_days` feature; and settings updates actually changing the
+  next grid fetch's row count/label format, not just redirecting. One regression pair is worth
+  calling out specifically: `test_block_mutation_response_grid_table_is_not_out_of_band` and
+  `test_create_success_response_carries_palette_and_oob_grid_fragment` together lock in the
+  Sprint 7 `grid_oob` flag's documented default-falsy behavior via a regex
+  (`_grid_table_tag()`) that `code-reviewer` independently confirmed matches only the
+  `#grid-table` div's own opening tag, not the neighboring `#grid-toast` div (which
+  unconditionally carries its own `hx-swap-oob`) — verified live against a real response, not
+  just trusted from the helper's own comment.
+- **Grid builder tests** (`test_grid.py`) construct unsaved `PlannerSettings`/`TimeBlock`
+  instances directly and use `SimpleTestCase` (no database), since `build_week_grid()` is pure
+  Python (PRD R2). Cover an empty grid, a single block's rowspan at both 30- and 60-minute
+  intervals, two sequential blocks, the row-collision re-anchoring behavior documented in the
+  Grid Rendering section above (verified by hand-tracing the exact 09:00-09:20/09:20-09:40
+  scenario against the real collision branch in `grid.py`), an out-of-range block, and 12h vs.
+  24h time labels.
+- **Test hygiene, verified empirically, not just by inspection**: the full suite was run under
+  normal order, `--shuffle`, `--reverse`, and `--parallel 4` — identical pass/fail result every
+  time, confirming PRD 8.4.1's "runs clean from a fresh clone" requirement isn't accidentally
+  order- or state-dependent. A "Running tests" section was added to `README.md` for the
+  documentation half of the same PRD item.
+- **One real, small bug this sprint's own review pass caught and fixed**: `apps/accounts/tests.py`
+  had one double-quoted string wrapping a Unicode curly apostrophe (matching Django's own
+  `SetPasswordForm` message text verbatim) with no escaping need to justify the double quotes — a
+  genuine NFR-02 single-quote violation, not a false positive. `code-reviewer` caught it during
+  its Sprint 8 pass; fixed directly, re-verified via a full test/ruff re-run.
+- **Verification**: `qa-tester` wrote the entire suite (single foreground dispatch, since writing
+  tests *is* this sprint's deliverable rather than a separate verification step), self-verified
+  via its own `manage.py test`/`ruff check` run before reporting done. This session then
+  independently re-read every test file in full and re-ran the same checks directly.
+  `code-reviewer` then ran its own independent pass — tracing the trickier assertions (round-half-up,
+  midnight edge cases, row-collision re-anchoring, the `grid_oob` regex claim) against the actual
+  model/view/grid source rather than trusting the tests' own docstrings, and additionally
+  re-running the suite under `--shuffle`/`--reverse`/`--parallel` itself rather than accepting the
+  "no ordering dependency" claim on faith — and found the two items above (the quote-style bug and
+  the missing README section), both fixed and re-verified.
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
@@ -684,9 +759,19 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
   `color-sync.js`'s actual picker/text-field sync and whether the two dashboard toolbar `<details>`
   dropdowns' hand-reasoned positioning/exclusive-accordion fix actually holds up next to each other
   in a real viewport (Sprint 7). Run `claude mcp add playwright -- npx @playwright/mcp@latest`
-  **before Sprint 8** — this gap is now five sprints deep and has not been shrinking, only
-  accumulating one or two new unconfirmed surfaces per sprint.
-- **No tests, no Docker.** Deliberately deferred to Sprints 8 and 9 per the PRD.
+  **before Sprint 9** — this gap is now six sprints deep and has not been shrinking, only
+  accumulating one or two new unconfirmed surfaces per sprint. Sprint 8's 82 new automated tests
+  do not close this gap at all: they run entirely through Django's test `Client` (a simulated
+  request/response cycle with no real browser, no rendering, no JS execution), so they can and do
+  verify status codes, headers, DB state, and response-body substrings, but nothing about how any
+  of this actually looks or behaves once painted and scripted in a real browser.
+- **No Docker.** Deliberately deferred to Sprint 9 per the PRD. (Automated tests, formerly listed
+  here alongside Docker, are no longer a gap — see the Sprint 8 section above.)
+- **No CI pipeline.** `manage.py test` and `ruff check` are both clean and documented as the
+  commands to run, but nothing runs them automatically on push/PR yet — no `.github/workflows/`
+  or equivalent exists. Not a PRD requirement for Sprint 8 (8.4.1 only asks that the suite itself
+  "runs clean from a fresh clone," which is verified), but worth flagging as the natural next step
+  once Sprint 9's Docker work lands, so a real CI job has something to build/run inside.
 
 ---
 

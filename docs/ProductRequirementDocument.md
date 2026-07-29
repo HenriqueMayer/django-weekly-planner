@@ -514,20 +514,21 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 8 — Automated Tests (Deferred Scope)
 
-- [ ] **8.1 Model tests**
-    - [ ] 8.1.1 `TimeBlock`: duration calculation (incl. midnight end), rowspan helper, `clean()` start/end rule.
-    - [ ] 8.1.2 Overlap validation: same-day overlap rejected; adjacent (touching) blocks allowed; update excluding self.
-    - [ ] 8.1.3 `BlockColor`: hex validator, `unique_together`, SET_NULL on delete.
-    - [ ] 8.1.4 Signal: `PlannerSettings` auto-created on user creation with defaults.
-- [ ] **8.2 View tests**
-    - [ ] 8.2.1 Auth protection: planner/dashboard routes redirect anonymous users.
-    - [ ] 8.2.2 Ownership isolation: user A cannot read/modify user B's blocks or colors (404).
-    - [ ] 8.2.3 Block CRUD + resize endpoints: success fragments, validation-error fragments, day-column re-render correctness.
-    - [ ] 8.2.4 Settings update re-renders grid with new interval/format.
-- [ ] **8.3 Grid builder tests**
-    - [ ] 8.3.1 Matrix generation: empty grid, single block rowspan, stacked blocks, 30 vs. 60 min intervals, 12h labels.
-- [ ] **8.4 CI-readiness (light)**
-    - [ ] 8.4.1 Ensure `python manage.py test` runs clean from a fresh clone; document in README.
+- [x] **8.1 Model tests**
+    - [x] 8.1.1 `TimeBlock`: duration calculation (incl. midnight end), rowspan helper, `clean()` start/end rule. *(11 tests in `apps/planner/tests/test_models.py`, including the round-half-up 90-minute case and the documented `00:00`-to-`00:00` full-day edge case from Sprint 4's ARCHITECTURE.md notes — asserted as valid, not an error.)*
+    - [x] 8.1.2 Overlap validation: same-day overlap rejected; adjacent (touching) blocks allowed; update excluding self. *(5 tests; also covers overlap-on-different-day and overlap-for-different-user as explicit "must be allowed" cases, since both are also ownership/scoping guarantees, not just overlap-math edge cases.)*
+    - [x] 8.1.3 `BlockColor`: hex validator, `unique_together`, SET_NULL on delete. *(8 tests. Deviation: validates the actual `UniqueConstraint(fields=['user', 'name'])` per Sprint 4's own documented deviation from literal `unique_together`, not the PRD's literal spelling — same DB-level guarantee.)*
+    - [x] 8.1.4 Signal: `PlannerSettings` auto-created on user creation with defaults. *(2 tests: default values asserted field-by-field; re-saving an existing user does not create a second row.)*
+- [x] **8.2 View tests**
+    - [x] 8.2.1 Auth protection: planner/dashboard routes redirect anonymous users. *(1 parametrized test sweeping all 14 auth-protected route/method combinations via `subTest`, not just a sample.)*
+    - [x] 8.2.2 Ownership isolation: user A cannot read/modify user B's blocks or colors (404). *(9 tests, one per pk-taking endpoint across both blocks and colors; each asserts 404 AND that the underlying row/field is untouched, not just the status code.)*
+    - [x] 8.2.3 Block CRUD + resize endpoints: success fragments, validation-error fragments, day-column re-render correctness. *(23 tests across block and color CRUD, incl. the `HX-Retarget`/`HX-Reswap` contract, the keyboard `+/-` resize fallback, day-range clamping, and a regression pair proving the Sprint 7 `grid_oob` flag is absent on ordinary block-mutation responses and present only on palette-CRUD responses.)*
+    - [x] 8.2.4 Settings update re-renders grid with new interval/format. *(3 tests: redirect-on-success, row-count change from a new `slot_interval`, and label format change from a new `time_format`.)*
+    - *(3 additional tests beyond the PRD's literal list: `repeat_days` copy creation and overlap-skip-without-abort, and a full create→resize→move→delete→create mixed-sequence consistency check per PRD 6.5.3.)*
+- [x] **8.3 Grid builder tests**
+    - [x] 8.3.1 Matrix generation: empty grid, single block rowspan, stacked blocks, 30 vs. 60 min intervals, 12h labels. *(8 tests, pure-Python via `SimpleTestCase` with unsaved model instances — no database touched. Also covers an out-of-range block and the row-collision re-anchoring behavior documented in ARCHITECTURE.md's Grid Rendering section, beyond the PRD's literal minimum.)*
+- [x] **8.4 CI-readiness (light)**
+    - [x] 8.4.1 Ensure `python manage.py test` runs clean from a fresh clone; document in README. *(Verified empirically, not just by inspection: the full 82-test suite passes under normal order, `--shuffle`, `--reverse`, and `--parallel 4` alike — no ordering dependency, no cross-test state leakage. A "Running tests" section was added to `README.md`. One real gap this task surfaced and fixed: `apps/accounts/tests.py` had one double-quoted string wrapping a Unicode curly apostrophe with no escaping need, a genuine NFR-02 single-quote violation caught by `code-reviewer` and fixed directly.)*
 
 ### Sprint 9 — Docker, Documentation & Open-Source Template Release
 

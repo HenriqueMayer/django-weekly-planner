@@ -60,3 +60,11 @@ Minify for a production build:
 ```
 
 **Whenever you add or change a Tailwind utility class in any template, rebuild `app.css` before judging the page — an unbuilt stylesheet is not a design bug.**
+
+### Running tests
+
+```sh
+uv run python manage.py test
+```
+
+Runs the full suite (models, views, and the pure-Python grid builder) against Django's own throwaway test database — nothing here depends on `db.sqlite3` or any seeded data, so this passes clean from a fresh clone right after `uv sync` + `migrate`.
