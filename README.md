@@ -1,7 +1,17 @@
 # Django Weekly Planner
 
-*A time-blocking weekly planner, built like a spreadsheet.*
+<details>
+<summary>Where it started</summary>
+<br>
 
+<img src="assets/ForTheReadme/preview.svg" width="480" alt="Original concept sketch">
+
+The napkin sketch this was built from, before any code existed — day columns, time-slot rows, free-form colored blocks. Kind of nice to see it turn into everything above.
+</details>
+
+***
+
+*A time-blocking weekly planner, built like a spreadsheet.*
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/ForTheReadme/MainPageDark.png">
   <source media="(prefers-color-scheme: light)" srcset="assets/ForTheReadme/MainPageLight.png">
@@ -206,11 +216,3 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new app, swap the colo
 
 [PolyForm Noncommercial License 1.0.0](LICENSE) — free for personal, noncommercial use (studying it, running it for yourself, adapting it for a hobby project). Selling this software, or using it for any commercial purpose, is not permitted.
 
-<details>
-<summary>Where it started</summary>
-<br>
-
-<img src="assets/ForTheReadme/preview.svg" width="480" alt="Original concept sketch">
-
-The napkin sketch this was built from, before any code existed — day columns, time-slot rows, free-form colored blocks. Kind of nice to see it turn into everything above.
-</details>
