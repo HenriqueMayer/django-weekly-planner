@@ -33,8 +33,42 @@ edges rather than the page's. Without a bounded height, this table's own
 (templates/partials/navbar.html) for the same on-screen position once
 the page scrolls past the fold -- not a documented PRD concern, but a
 necessary consequence of giving both a sticky header at the same time.
+
+Sprint 6 (htmx-interaction): `id="grid-table"` is the swap target every
+mutating block view (create/edit/delete/resize/repeat-across-days)
+declares via `hx-target="#grid-table" hx-swap="outerHTML"` (see
+apps/planner/views.py's module docstring for why every real mutation
+re-renders the whole table rather than a per-cell/per-column patch).
+`data-slot-interval` exposes `WeekGrid.slot_interval` (minutes) to
+`static/js/grid-drag.js`, which needs it to translate a dragged pixel
+delta into a whole number of slots -- read fresh from this element's own
+`dataset` on every drag gesture, never cached in JS across a swap (this
+whole `<div>`, id included, is replaced wholesale by every mutation, so
+any JS-side cache of it would immediately go stale).
+
+The `#grid-toast` `<div>` just above renders on *every* pass through this
+template, including a plain page load where `toast_message`/
+`toast_level` are simply undefined (Django renders undefined template
+variables as empty strings, so this is inert/invisible there) -- it must
+never be wrapped in a template-level `{% if %}` that could remove it
+from the DOM entirely, or the next `hx-swap-oob="true"` response would
+have no matching id to swap into (verified via Context7: an out-of-band
+element is matched against the *current* DOM by this `id`; if no element
+with that id exists, the OOB swap is simply a silent no-op). It is
+rendered as a sibling *before* this wrapper `<div>`, both at the top
+level of this partial's own output -- htmx processes `hx-swap-oob`
+elements found at any nesting depth in a response by default, but
+top-level placement is the documented, unambiguous case regardless of
+`htmx.config.allowNestedOobSwaps`, so that's what's used here.
 {% endcomment %}
-<div class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+<div
+    id="grid-toast"
+    hx-swap-oob="true"
+    role="status"
+    aria-live="polite"
+    class="mb-4 rounded-lg px-4 py-3 text-sm ring-1 {% if toast_message %}{% if toast_level == 'error' %}block bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800{% else %}block bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800{% endif %}{% else %}hidden ring-transparent{% endif %}"
+>{{ toast_message }}</div>
+<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
     <table class="w-full table-fixed border-collapse text-xs sm:text-sm">
         <thead>
             <tr>

@@ -54,6 +54,25 @@ def round_half_up(value):
     return math.floor(value + 0.5)
 
 
+def time_from_minutes(total_minutes):
+    """Convert a minutes-since-midnight count back into a `time` object.
+
+    The inverse of `minutes_since_midnight()`: wraps at 1440 so a value of
+    exactly `MINUTES_PER_DAY` (e.g. the end of a midnight-crossing block,
+    or the last row of a 06:00-00:00 day) renders as `00:00` instead of
+    raising `ValueError` on the invalid `time(24, 0)`.
+
+    This is the single, centralized implementation shared by
+    `apps.planner.grid.build_week_grid()` and every resize code path in
+    `apps.planner.views`, so the minutes-to-time direction is never
+    re-implemented elsewhere -- mirroring `minutes_since_midnight()` above
+    for the reverse direction.
+    """
+    total_minutes %= MINUTES_PER_DAY
+    hour, minute = divmod(total_minutes, 60)
+    return time(hour, minute)
+
+
 class BlockColor(TimestampedModel):
     """A single entry in a user's personal color palette (PRD FR-13)."""
 

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}My Week{% endblock %}
 
@@ -20,4 +21,15 @@
     <div class="mt-8">
         {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
     </div>
+{% endblock %}
+
+{% block extra_body %}
+    {% comment %}
+    htmx-interaction (Sprint 6): drag-to-resize + block-text-contrast JS is
+    scoped to just the two pages that ever render the grid (this page and
+    `core/dashboard.html`), not loaded globally from base.html, since
+    nothing else on the site needs it.
+    {% endcomment %}
+    <script src="{% static 'js/grid-drag.js' %}"></script>
+    <script src="{% static 'js/contrast.js' %}"></script>
 {% endblock %}

@@ -41,3 +41,16 @@
    relative to this file (static/css/input.css). */
 @source '../../templates';
 @source '../../apps';
+
+/* htmx-interaction (PRD 6.5.1): htmx adds this class to the element that
+   triggered a request (or its `hx-indicator` target, if one is declared)
+   for the duration of that request, and removes it once the response has
+   settled. Kept deliberately generic -- not scoped to one component -- so
+   every hx-* interaction across the app (form submits, resize drags,
+   delete/cancel buttons) gets the same subtle "something is happening"
+   feedback for free, without every call site needing its own
+   `hx-indicator`. */
+.htmx-request {
+    opacity: 0.6;
+    pointer-events: none;
+}

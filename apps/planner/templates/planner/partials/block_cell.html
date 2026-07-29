@@ -1,8 +1,9 @@
 {% comment %}
 Renders one 'block-start' grid cell (PRD 5.2.3): the single
 `<td rowspan="...">` covering a `TimeBlock`'s full vertical span.
-Self-sufficient (no ancestor styling assumed) so it stays correct if a
-later sprint re-renders it standalone via an HTMX fragment swap.
+Self-sufficient (no ancestor styling assumed) so it stays correct
+whenever a later HTMX fragment swap re-renders it standalone (e.g.
+`planner:block-cancel`, PRD 6.1.5/6.2.1).
 
 Usage, from a `{% for cell in row.cells %}` loop:
     {% include 'planner/partials/block_cell.html' with cell=cell %}
@@ -11,24 +12,97 @@ Background: uses the block's real hex color (`cell.block.color.hex_code`)
 via inline `style` when a color is assigned. When `cell.block.color` is
 null (PRD FR-13's SET_NULL-on-delete case), there is no hex to source a
 `style` from, so a plain neutral Tailwind fill is used instead
-(`bg-slate-500` / `dark:bg-slate-600` -- not the `slate-400` a literal
-reading of the design-token family might suggest, chosen instead because
-it is the lightest slate step that still holds >= 4.5:1 contrast against
-the `text-white` label in *light* mode; `slate-400` measures well under
-3:1 there. No token in PRD §9 covers this case yet -- flagged as a gap).
+(`bg-slate-500` / `dark:bg-slate-600` -- see the original Sprint 5 note:
+the lightest slate step that still holds >= 4.5:1 contrast against
+`text-white` in *light* mode).
 
-Text color is a fixed `text-white` placeholder for now, matching the
-landing page's decorative grid mock (Sprint 3). The real JS-computed
-luminance-based contrast rule against arbitrary user hex values is
-Sprint 7.2.2 scope (`htmx-interaction`), not this template's.
+Text color: when a custom hex color IS set, `data-bg-hex` carries it and
+`static/js/contrast.js` (PRD 7.2.2) computes relative luminance to pick
+`text-white` or `text-slate-900` on this same `<td>`, both on initial
+page load and after every HTMX swap (bound to `htmx:afterSettle`, so
+freshly swapped-in cells are covered too, not just the first paint).
+The default `text-white` class below is only the pre-JS fallback for
+that case (and the permanent, JS-untouched choice for the no-color
+fallback background, which never carries `data-bg-hex`).
 
-The inner <div> is a bare, unstyled wrapping element -- the future home
-for Sprint 6.5.2's hover edit/delete controls. No controls exist yet.
+Sprint 6 additions (htmx-interaction):
+- Click-to-edit (PRD 6.2.1): the inner `.block-label` `<div>` -- not the
+  whole `<td>` -- carries `hx-get`/`hx-target="this"`/`hx-swap="outerHTML"`
+  to `planner:block-edit`. Scoping the trigger to this inner content div,
+  which does NOT wrap the hover-controls corner below, means a click on
+  the edit/delete buttons never bubbles *through* this element at all
+  (they are siblings inside the `<td>`, not descendants of
+  `.block-label`) -- no `stopPropagation()` would even be reachable by
+  it. `event.stopPropagation()` (`hx-on:click`, verified htmx 2.x inline
+  event syntax via Context7 -- single colon for a plain DOM event, the
+  double-colon shorthand is only for `htmx:*`-prefixed events) is added
+  to both hover-control buttons anyway, as defense in depth, in case a
+  future edit ever nests them differently.
+- Hover controls (PRD 6.5.2): edit (pencil) + delete (trash) icon
+  buttons, real focusable `<button>`s (not styled spans), shown on
+  `group-hover` and, for keyboard users tabbing through the grid, via
+  `focus-within` on their shared wrapper -- so tabbing to either button
+  reveals both without requiring a mouse (NFR-06).
+- Resize handles (PRD 6.3.1): thin top/bottom strips, `cursor-ns-resize`,
+  read by `static/js/grid-drag.js` via `data-resize-handle`. The `<td>`
+  itself carries `data-pk`/`data-start`/`data-end`/`data-resize-url` so
+  the drag script can compute a slot delta and fire the resize request
+  without any cached application state of its own.
 {% endcomment %}
 <td
     rowspan="{{ cell.rowspan }}"
-    class="rounded-md border border-slate-200 dark:border-slate-700 p-1 align-top text-xs font-medium text-white {% if not cell.block.color %}bg-slate-500 dark:bg-slate-600{% endif %}"
-    {% if cell.block.color %}style="background-color: {{ cell.block.color.hex_code }};"{% endif %}
+    class="group relative rounded-md border border-slate-200 dark:border-slate-700 p-1 align-top text-xs font-medium text-white {% if not cell.block.color %}bg-slate-500 dark:bg-slate-600{% endif %}"
+    {% if cell.block.color %}style="background-color: {{ cell.block.color.hex_code }};" data-bg-hex="{{ cell.block.color.hex_code }}"{% endif %}
+    data-pk="{{ cell.block.pk }}"
+    data-start="{{ cell.block.start_time|time:'H:i' }}"
+    data-end="{{ cell.block.end_time|time:'H:i' }}"
+    data-resize-url="{% url 'planner:block-resize' cell.block.pk %}"
 >
-    <div>{{ cell.block.label }}</div>
+    <div
+        class="block-label h-full cursor-pointer rounded px-1 py-0.5 pr-12 focus:outline-none focus:ring-2 focus:ring-white/70"
+        hx-get="{% url 'planner:block-edit' cell.block.pk %}"
+        hx-target="this"
+        hx-swap="outerHTML"
+        hx-trigger="click"
+    >{{ cell.block.label }}</div>
+
+    <div class="absolute right-1 top-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+        <button
+            type="button"
+            hx-get="{% url 'planner:block-edit' cell.block.pk %}"
+            hx-target="closest td"
+            hx-swap="outerHTML"
+            hx-on:click="event.stopPropagation()"
+            aria-label="Edit {{ cell.block.label }}"
+            class="rounded bg-black/20 p-1 text-white hover:bg-black/40 focus:outline-none focus:ring-2 focus:ring-white"
+        >
+            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+            </svg>
+        </button>
+        <button
+            type="button"
+            hx-post="{% url 'planner:block-delete' cell.block.pk %}"
+            hx-confirm="Delete “{{ cell.block.label }}”?"
+            hx-target="#grid-table"
+            hx-swap="outerHTML"
+            hx-on:click="event.stopPropagation()"
+            aria-label="Delete {{ cell.block.label }}"
+            class="rounded bg-black/20 p-1 text-white hover:bg-black/40 focus:outline-none focus:ring-2 focus:ring-white"
+        >
+            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"></path>
+            </svg>
+        </button>
+    </div>
+
+    {% comment %}
+    Drag-to-resize handles (PRD 6.3.1-6.3.3). `touch-action: none` (via
+    the `touch-none` utility) stops the browser's own touch-scroll
+    gesture from competing with a Pointer Events drag on tablets (PRD §4
+    tablet support) -- `static/js/grid-drag.js` owns pointerdown/move/up
+    from here on.
+    {% endcomment %}
+    <div class="touch-none absolute inset-x-0 top-0 h-1.5 cursor-ns-resize" data-resize-handle="top" aria-hidden="true"></div>
+    <div class="touch-none absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize" data-resize-handle="bottom" aria-hidden="true"></div>
 </td>

@@ -78,7 +78,7 @@ from dataclasses import dataclass, field
 from datetime import time
 from math import ceil
 
-from apps.planner.models import MINUTES_PER_DAY, TimeBlock, minutes_since_midnight, round_half_up
+from apps.planner.models import TimeBlock, minutes_since_midnight, round_half_up, time_from_minutes
 
 
 @dataclass
@@ -134,18 +134,6 @@ class _CellState:
         self.block = block
         self.rowspan = rowspan
         self.clamped = clamped
-
-
-def _minutes_to_time(total_minutes):
-    """Convert a minutes-since-midnight count back into a `time` object.
-
-    Wraps at 1440 so a slot boundary landing exactly on midnight (e.g.
-    the last row of a 06:00-00:00 day) renders as `00:00` instead of
-    raising `ValueError` on the invalid `time(24, 0)`.
-    """
-    total_minutes %= MINUTES_PER_DAY
-    hour, minute = divmod(total_minutes, 60)
-    return time(hour, minute)
 
 
 def _format_time_label(value, time_format):
@@ -293,8 +281,8 @@ def build_week_grid(planner_settings, blocks):
     for row_index in range(slots_count):
         slot_start_minutes = range_start + row_index * interval
         slot_end_minutes = slot_start_minutes + interval
-        slot_start_time = _minutes_to_time(slot_start_minutes)
-        slot_end_time = _minutes_to_time(slot_end_minutes)
+        slot_start_time = time_from_minutes(slot_start_minutes)
+        slot_end_time = time_from_minutes(slot_end_minutes)
 
         cells = []
         for day in range(7):

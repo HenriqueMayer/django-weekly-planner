@@ -1,0 +1,194 @@
+{% comment %}
+Inline create/edit form for a `TimeBlock` (PRD 6.1.1-6.1.5, 6.2.1/6.2.2,
+6.3.4, 6.4.1/6.4.2). Replaces the Sprint 6 backend-smoke-test placeholder.
+
+Rendered inside the `<td>` that previously held either an empty cell
+(create, `BlockCreateView`) or a block cell (edit, `BlockUpdateView`), so it
+stays valid table markup -- same `rowspan` as whatever it replaces (1 for
+create, `rowspan` from context for edit, PRD 5.2.4) -- but the *visible*
+content is an absolutely-positioned overlay card, mirroring the Sprint 4
+settings dropdown panel idiom (apps/core/templates/core/dashboard.html's
+`<details>` panel, PRD §9.2) since a 48px-tall `<td>` has nowhere near
+enough room for label/day/time/color/repeat-days/save/cancel. There is no
+`<details>` here -- the form is always-open once swapped in, not
+user-toggled.
+
+Swap strategy (Sprint 6, htmx-interaction):
+- On a successful submit, `_render_grid_response()`
+  (apps/planner/views.py) returns the *whole* re-rendered
+  `grid_table.html` fragment -- so this `<form>` declares
+  `hx-target="#grid-table" hx-swap="outerHTML"` for that path.
+- On a validation error, `FormMixin`'s default `form_invalid()`
+  re-renders *this same template* with errors bound, status 200 -- but
+  that response must swap back into this form's own small `<td>`, not get
+  dumped into `#grid-table`. Since one element can't declare two
+  different targets for the same trigger,
+  `BlockCreateView.form_invalid()`/`BlockUpdateView.form_invalid()`
+  (apps/planner/views.py) set `HX-Retarget: #block-form` +
+  `HX-Reswap: outerHTML` response headers to override the target/swap for
+  that one response only (verified against the current htmx docs via
+  Context7 -- `HX-Retarget` takes a CSS selector, `HX-Reswap` a
+  swap-style string, both read from the response headers regardless of
+  what the triggering element originally declared).
+- `id="block-form"` on the wrapping `<td>` below is a *fixed* id -- not
+  parameterized by pk/day/start-time -- specifically so the header above
+  never has to compute a selector from data that could itself be
+  mid-edit: a user is free to change the day/start/end fields before
+  submitting, and if the retarget selector were derived from *submitted*
+  values it could point at an id the currently-live (pre-swap) DOM
+  element doesn't actually carry (that element was rendered from the
+  *previous* GET/POST, using the *previous* values). A fixed id sidesteps
+  that entirely. The known tradeoff: if a user somehow has two inline
+  forms open at once (e.g. clicked two different empty cells before
+  either was submitted), both would carry the same id, and only the
+  first match in document order would be retargeted on a validation
+  failure for either -- an accepted, rare edge case, not a happy-path
+  concern.
+- Cancel restores the original cell fragment via a plain `hx-get` to
+  `planner:cell-cancel` (create) / `planner:block-cancel` (edit),
+  targeting `closest td` (the enclosing `<td id="block-form">`,
+  resolved structurally rather than by id, so it never depends on the
+  HX-Retarget mechanism above at all) -- also never touches `#grid-table`.
+- The `+`/`-` slot-resize buttons (PRD 6.3.4, edit mode only) are plain
+  `<button type="submit" name="action" value="extend|shrink">` inside
+  this same `<form>` -- no separate hx-target/hx-swap needed, since a
+  submit button with no `hx-*` attributes of its own simply triggers the
+  form's own declared `hx-post`/`hx-target`/`hx-swap`, with its
+  `name`/`value` appended to the submitted body exactly like a native
+  form submission. `BlockUpdateView.post()` branches on
+  `request.POST.get('action')` before touching the rest of the form,
+  so the other fields riding along in the same POST are simply ignored
+  on that branch.
+{% endcomment %}
+<td id="block-form" class="relative" rowspan="{{ rowspan }}">
+    <div class="absolute z-30 left-0 top-0 w-72 space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+        {% if form.non_field_errors %}
+            <div class="space-y-1">
+                {% for error in form.non_field_errors %}
+                    <p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form
+            method="post"
+            {% if form.instance.pk %}
+                action="{% url 'planner:block-edit' form.instance.pk %}"
+                hx-post="{% url 'planner:block-edit' form.instance.pk %}"
+            {% else %}
+                action="{% url 'planner:block-create' %}"
+                hx-post="{% url 'planner:block-create' %}"
+            {% endif %}
+            hx-target="#grid-table"
+            hx-swap="outerHTML"
+            class="space-y-3"
+        >
+            {% csrf_token %}
+
+            {% include 'partials/form_field.html' with field=form.label %}
+            {% include 'partials/form_field.html' with field=form.day_of_week %}
+
+            <div class="grid grid-cols-2 gap-2">
+                {% include 'partials/form_field.html' with field=form.start_time %}
+                {% include 'partials/form_field.html' with field=form.end_time %}
+            </div>
+
+            {% comment %}
+            `color` is a `ModelChoiceField` over the user's `BlockColor`
+            palette (apps/planner/forms.py), rendered via a bare
+            `RadioSelect` widget so the swatch styling could live here.
+            Iterating `form.color`'s auto-generated subwidgets would only
+            expose each `BlockColor`'s pk/name (`BoundWidget.data`), never
+            its `hex_code` -- so the swatches are built directly from
+            `form.fields.color.queryset` instead of the widget's own
+            iteration, with a hand-rolled `<input type="radio"
+            name="color">` per swatch (same field `name`, so this still
+            posts and binds exactly like the auto-generated widget would).
+            `form.color.value` reflects the current selection consistently
+            across both an unbound GET (the instance's existing color, or
+            none) and a bound, possibly-invalid POST (whatever the user
+            just submitted) -- see `django.forms.BoundField.value()`.
+            {% endcomment %}
+            <div>
+                <span class="block text-sm font-medium text-slate-700 dark:text-slate-300">Color</span>
+                <div class="mt-1 flex flex-wrap gap-2">
+                    <label class="cursor-pointer" title="No color">
+                        <input type="radio" name="color" value="" class="peer sr-only" aria-label="No color" {% if not form.color.value %}checked{% endif %}>
+                        <span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-xs text-slate-400 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:ring-offset-1 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:border-slate-600">&times;</span>
+                    </label>
+                    {% for color in form.fields.color.queryset %}
+                        <label class="cursor-pointer" title="{{ color.name }}">
+                            <input type="radio" name="color" value="{{ color.pk }}" class="peer sr-only" aria-label="{{ color.name }}" {% if form.color.value|stringformat:'s' == color.pk|stringformat:'s' %}checked{% endif %}>
+                            <span class="block h-7 w-7 rounded-full ring-1 ring-slate-300 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:ring-offset-1 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:ring-slate-600" style="background-color: {{ color.hex_code }};"></span>
+                        </label>
+                    {% endfor %}
+                </div>
+                {% for error in form.color.errors %}
+                    <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            {% if not form.instance.pk %}
+                {% comment %}
+                Repeat-across-days (PRD 6.4.1/6.4.2) only makes sense when
+                creating a fresh block -- repeating an *edit* of an
+                existing instance isn't a meaningful action, so this field
+                (present on the same `TimeBlockForm` either way) is simply
+                not rendered in edit mode.
+                {% endcomment %}
+                <div>
+                    <span class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ form.repeat_days.label }}</span>
+                    <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+                        {% for choice in form.repeat_days %}
+                            <label class="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-700 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-600 dark:text-slate-200 dark:has-[:checked]:bg-indigo-950/40">
+                                {{ choice.tag }}
+                                <span>{{ choice.choice_label|slice:':3' }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.repeat_days.help_text }}</p>
+                    {% for error in form.repeat_days.errors %}
+                        <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="flex items-center justify-between gap-2 pt-1">
+                <div class="flex gap-2">
+                    {% include 'partials/buttons/primary.html' with label='Save' %}
+                    <button
+                        type="button"
+                        {% if form.instance.pk %}
+                            hx-get="{% url 'planner:block-cancel' form.instance.pk %}"
+                        {% else %}
+                            hx-get="{% url 'planner:cell-cancel' %}?day={{ form.day_of_week.value }}&start={{ form.start_time.value }}&end={{ form.end_time.value }}"
+                        {% endif %}
+                        hx-target="closest td"
+                        hx-swap="outerHTML"
+                        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >Cancel</button>
+                </div>
+
+                {% if form.instance.pk %}
+                    {% comment %}
+                    PRD 6.3.4 keyboard/click fallback for drag-to-resize --
+                    ships *before* any drag JS exists, per this sprint's
+                    build order. Same `<form>`, same success target.
+                    {% endcomment %}
+                    <div class="flex gap-1" role="group" aria-label="Resize by one slot">
+                        <button
+                            type="submit" name="action" value="shrink"
+                            aria-label="Shrink by one slot"
+                            class="rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >&minus;</button>
+                        <button
+                            type="submit" name="action" value="extend"
+                            aria-label="Extend by one slot"
+                            class="rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >+</button>
+                    </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</td>

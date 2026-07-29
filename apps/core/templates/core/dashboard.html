@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}My Week{% endblock %}
 
@@ -83,4 +84,13 @@
     <div class="mt-8">
         {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
     </div>
+{% endblock %}
+
+{% block extra_body %}
+    {% comment %}
+    htmx-interaction (Sprint 6): see planner/grid.html's identical block for
+    why this include is scoped here rather than global in base.html.
+    {% endcomment %}
+    <script src="{% static 'js/grid-drag.js' %}"></script>
+    <script src="{% static 'js/contrast.js' %}"></script>
 {% endblock %}

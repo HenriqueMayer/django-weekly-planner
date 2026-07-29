@@ -471,30 +471,30 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 6 — Block Interactivity (HTMX + Vanilla JS)
 
-- [ ] **6.1 Create block (inline HTMX)**
-    - [ ] 6.1.1 Create `TimeBlockForm` (label, color, day_of_week, start_time, end_time) with Tailwind widgets; color rendered as swatch radio group.
-    - [ ] 6.1.2 `BlockCreateFormView` (GET): returns `partials/block_form.html` pre-filled from cell `data-*` params; empty cell uses `hx-get` + `hx-swap` to replace itself with the form.
-    - [ ] 6.1.3 `BlockCreateView` (POST, CreateView): on success return the rendered block cell fragment (with correct rowspan) + an `HX-Trigger`/OOB strategy to remove now-occupied sibling cells — or simply re-render the affected day column fragment for correctness.
-    - [ ] 6.1.4 On validation error, return the form fragment with inline errors (status 200 for HTMX swap).
-    - [ ] 6.1.5 Cancel action restores the empty cell fragment.
-- [ ] **6.2 Edit and delete**
-    - [ ] 6.2.1 Clicking a block `hx-get`s the edit form (same partial, bound instance) swapped over the block cell.
-    - [ ] 6.2.2 `BlockUpdateView` (POST): success re-renders the affected day column(s) (old day + new day if moved).
-    - [ ] 6.2.3 `BlockDeleteView` (POST): removes block, re-renders the day column restoring empty cells; confirm via `hx-confirm`.
-    - [ ] 6.2.4 Ownership guard: all block views filter `queryset` by `request.user` (404 otherwise).
-- [ ] **6.3 Drag-to-resize (vertical merge)**
-    - [ ] 6.3.1 Create `static/js/grid-drag.js`: pointer-event handlers on block bottom/top edge handles; compute slot delta from row height; live visual preview (CSS height/outline).
-    - [ ] 6.3.2 On release, trigger an HTMX POST (`htmx.ajax` or a hidden form) to a `BlockResizeView` with the new start/end times.
-    - [ ] 6.3.3 `BlockResizeView` (POST): clamp to grid bounds, run overlap validation, return re-rendered day column; on rejection return the column unchanged plus an inline toast/error fragment.
-    - [ ] 6.3.4 Keyboard/click fallback: '+/−' controls in the edit form to extend/shrink one slot without dragging.
-- [ ] **6.4 Horizontal spanning (repeat across days)**
-    - [ ] 6.4.1 Add 'repeat on days' checkbox group to the block form (create/edit): server creates per-day copies with identical label/color/times.
-    - [ ] 6.4.2 Skip-and-report behavior: days where a copy would overlap are skipped and listed in an inline notice.
-    - [ ] 6.4.3 (Enhancement) horizontal drag in `grid-drag.js` mapping column delta to repeat-days, reusing 6.4.1 endpoint.
-- [ ] **6.5 Interaction polish**
-    - [ ] 6.5.1 HTMX loading indicators (subtle opacity/spinner via `htmx-request` class).
-    - [ ] 6.5.2 Hover controls on blocks (edit/delete icons) with keyboard-focusable equivalents.
-    - [ ] 6.5.3 Verify every operation performs no full page reload and grid state stays consistent after mixed operations.
+- [x] **6.1 Create block (inline HTMX)**
+    - [x] 6.1.1 Create `TimeBlockForm` (label, color, day_of_week, start_time, end_time) with Tailwind widgets; color rendered as swatch radio group. *(Also carries a non-model `repeat_days` `CheckboxSelectMultiple` field for 6.4.1, and requires a `user` kwarg — set on `self.instance` in `__init__`, not in a view's `form_valid()` — since `TimeBlock.clean()`'s overlap check depends on `self.user` and `ModelForm._post_clean()` runs `full_clean()` during `is_valid()`, before `form_valid()` ever executes; see `docs/ARCHITECTURE.md`.)*
+    - [x] 6.1.2 `BlockCreateFormView` (GET): returns `partials/block_form.html` pre-filled from cell `data-*` params; empty cell uses `hx-get` + `hx-swap` to replace itself with the form. *(Deviation: consolidated into `BlockCreateView` itself rather than a separate view class — `CreateView` already natively handles both GET and POST, so a second near-identical class would be pure duplication against NFR-01.)*
+    - [x] 6.1.3 `BlockCreateView` (POST, CreateView): on success return the rendered block cell fragment (with correct rowspan) + an `HX-Trigger`/OOB strategy to remove now-occupied sibling cells — or simply re-render the affected day column fragment for correctness. *(Deviation: re-renders the entire grid table, not just the affected day column — the PRD's own "or simply re-render... for correctness" fallback taken to its simplest, always-correct conclusion, since any mutation can reshape a whole day's `rowspan`/`occupied` pattern in ways a per-column patch can't safely express against this single-`<table>` design; see `docs/ARCHITECTURE.md`.)*
+    - [x] 6.1.4 On validation error, return the form fragment with inline errors (status 200 for HTMX swap). *(Note: since the same `<form>` targets `#grid-table` on success, an invalid response uses `HX-Retarget`/`HX-Reswap` response headers to redirect the swap back into the form's own small `<td>` instead — see `docs/ARCHITECTURE.md`.)*
+    - [x] 6.1.5 Cancel action restores the empty cell fragment.
+- [x] **6.2 Edit and delete**
+    - [x] 6.2.1 Clicking a block `hx-get`s the edit form (same partial, bound instance) swapped over the block cell.
+    - [x] 6.2.2 `BlockUpdateView` (POST): success re-renders the affected day column(s) (old day + new day if moved). *(Same whole-grid-swap deviation as 6.1.3 — a moved block is simply covered by the same full re-render, no special-casing needed for the old-day/new-day case.)*
+    - [x] 6.2.3 `BlockDeleteView` (POST): removes block, re-renders the day column restoring empty cells; confirm via `hx-confirm`. *(Deviation: a small custom `View`, not a generic `DeleteView` — the confirmation step is the client-side `hx-confirm` attribute, so a server-rendered GET confirm page would be unused scope.)*
+    - [x] 6.2.4 Ownership guard: all block views filter `queryset` by `request.user` (404 otherwise). *(Verified: cross-user requests to edit/delete/resize/cancel all return 404, confirmed via `qa-tester` and `code-reviewer` independently, not just this view's own tests.)*
+- [x] **6.3 Drag-to-resize (vertical merge)**
+    - [x] 6.3.1 Create `static/js/grid-drag.js`: pointer-event handlers on block bottom/top edge handles; compute slot delta from row height; live visual preview (CSS height/outline).
+    - [x] 6.3.2 On release, trigger an HTMX POST (`htmx.ajax` or a hidden form) to a `BlockResizeView` with the new start/end times. *(Note: a real bug was caught and fixed here before sign-off — the initial `htmx.ajax()` call omitted `source`, meaning it never picked up `base.html`'s ancestor `hx-headers` CSRF token and would have failed with 403 in a real browser; fixed by passing `source: drag.cell`; see `docs/ARCHITECTURE.md`.)*
+    - [x] 6.3.3 `BlockResizeView` (POST): clamp to grid bounds, run overlap validation, return re-rendered day column; on rejection return the column unchanged plus an inline toast/error fragment. *(Same whole-grid-swap deviation as 6.1.3; "toast/error fragment" implemented as a persistent `#grid-toast` OOB element, reused by every mutating view, not a one-off fragment — see `docs/ARCHITECTURE.md`.)*
+    - [x] 6.3.4 Keyboard/click fallback: '+/−' controls in the edit form to extend/shrink one slot without dragging. *(Note: `code-reviewer` caught that this path initially clamped only to the absolute calendar day, disagreeing with `BlockResizeView`'s day-range clamp — fixed via a shared `_day_range_minutes()` helper so both paths derive their bounds from the same source; see `docs/ARCHITECTURE.md`.)*
+- [x] **6.4 Horizontal spanning (repeat across days)**
+    - [x] 6.4.1 Add 'repeat on days' checkbox group to the block form (create/edit): server creates per-day copies with identical label/color/times.
+    - [x] 6.4.2 Skip-and-report behavior: days where a copy would overlap are skipped and listed in an inline notice. *(Reported through the same `#grid-toast` channel used by resize rejections — one notice mechanism, not two.)*
+    - [ ] 6.4.3 (Enhancement) horizontal drag in `grid-drag.js` mapping column delta to repeat-days, reusing 6.4.1 endpoint. *(Deferred: the PRD itself marks this a stretch enhancement, not core scope; 6.4.1/6.4.2's checkbox-based repeat is fully functional without it. Left unchecked rather than claimed done.)*
+- [x] **6.5 Interaction polish**
+    - [x] 6.5.1 HTMX loading indicators (subtle opacity/spinner via `htmx-request` class).
+    - [x] 6.5.2 Hover controls on blocks (edit/delete icons) with keyboard-focusable equivalents. *(Note: `code-reviewer` caught that the color-swatch radios elsewhere in the same form had no visible focus indicator — a related but distinct NFR-06 gap, fixed alongside this item; see `docs/ARCHITECTURE.md`.)*
+    - [x] 6.5.3 Verify every operation performs no full page reload and grid state stays consistent after mixed operations. *(Verified via HTTP status/header/DB-state assertions through Django's test client — HX-Retarget/HX-Reswap behavior, toast OOB survival across sequential mutations, ownership isolation, and grid-structure consistency after mixed create/edit/delete/resize/repeat sequences. Real-browser confirmation of the visual "no reload" experience itself still deferred to Playwright — see gaps section.)*
 
 ### Sprint 7 — Color Palette, Theming & UX Polish
 
@@ -505,7 +505,7 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
     - [ ] 7.1.4 Refresh color choices in open block forms after palette changes (simple approach: forms fetch fresh on open).
 - [ ] **7.2 Theming and visual QA**
     - [ ] 7.2.1 Full dark/light audit of every screen and fragment (including HTMX partials rendered standalone).
-    - [ ] 7.2.2 Contrast check for block text over arbitrary user hex colors (JS luminance rule → white/black text).
+    - [x] 7.2.2 Contrast check for block text over arbitrary user hex colors (JS luminance rule → white/black text). *(Implemented early, during Sprint 6, as `static/js/contrast.js` — a natural extension of that sprint's color-swatch/block-cell work, retiring the Sprint 5 `text-white`-fixed placeholder rather than adding new scope. `code-reviewer` reviewed this early landing and did not consider it NFR-01 scope creep; see `docs/ARCHITECTURE.md`.)*
     - [ ] 7.2.3 Responsive audit: landing, auth, dashboard grid at mobile/tablet/desktop breakpoints.
 - [ ] **7.3 Quality pass**
     - [ ] 7.3.1 PEP 8 / single-quote sweep (run `ruff`/`flake8` locally, config committed; keep it a dev-only tool).

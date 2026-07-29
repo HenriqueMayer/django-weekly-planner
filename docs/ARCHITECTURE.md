@@ -13,17 +13,19 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 3 — Landing Page & Dashboard Shell: complete.**
 **Sprint 4 — Planner Domain (Models, Signals, Admin, Settings): complete.**
 **Sprint 5 — Grid Rendering (Server-Side): complete.**
+**Sprint 6 — Block Interactivity (HTMX + Vanilla JS): complete.**
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
 (header, toolbar). The planner domain exists: `BlockColor`, `PlannerSettings`, and `TimeBlock`
 models with full validation, a signal auto-creating each new user's settings, admin registration,
 and a live settings form reachable both standalone and as an inline dashboard-toolbar dropdown.
-The dashboard now renders a real, server-computed weekly grid (`apps/planner/grid.py`) —
+The dashboard renders a real, server-computed weekly grid (`apps/planner/grid.py`) —
 Monday-Sunday columns, time-slot rows honoring the user's interval/range/format settings, and
 blocks placed with correct `rowspan`, including midnight-crossing and interval-misaligned blocks.
-There is still no block CRUD/HTMX interactivity yet (Sprint 6) — the grid is read-only,
-server-rendered HTML. See §13 in the PRD for the full sprint plan and checklist.
+The grid is no longer read-only: blocks can be created, edited, deleted, resized (by drag or by a
+keyboard/click '+/-' fallback), and repeated across days, all via inline HTMX partial swaps with
+zero full-page reloads. See §13 in the PRD for the full sprint plan and checklist.
 
 ---
 
@@ -54,22 +56,30 @@ django-weekly-planner/
 │   │   ├── views.py           # SignUpView(CreateView)
 │   │   ├── urls.py            # app_name = 'accounts'; login/, signup/, logout/
 │   │   └── templates/accounts/  # login.html, signup.html
-│   └── planner/               # domain models/settings — Sprint 4; grid — Sprint 5; CRUD — Sprint 6+
-│       ├── models.py           # BlockColor, PlannerSettings, TimeBlock (all TimestampedModel)
+│   └── planner/               # domain models/settings — Sprint 4; grid — Sprint 5; CRUD — Sprint 6
+│       ├── models.py           # BlockColor, PlannerSettings, TimeBlock (all TimestampedModel);
+│       │                       # also minutes_since_midnight()/round_half_up()/time_from_minutes()
 │       ├── grid.py             # build_week_grid() — pure-Python matrix builder (Sprint 5)
 │       ├── signals.py          # post_save on User -> auto-create PlannerSettings
 │       ├── apps.py             # PlannerConfig.ready() registers signals.py
 │       ├── admin.py            # all three models registered
-│       ├── forms.py            # PlannerSettingsForm (shared INPUT_CLASSES pattern)
-│       ├── views.py            # SettingsUpdateView, GridView (both LoginRequiredMixin)
-│       ├── urls.py             # app_name = 'planner'; '' (grid), settings/
+│       ├── forms.py            # PlannerSettingsForm, TimeBlockForm (Sprint 6, incl. repeat_days)
+│       ├── views.py            # SettingsUpdateView, GridView, + Sprint 6's BlockCreateView,
+│       │                       # BlockUpdateView, BlockDeleteView, BlockResizeView,
+│       │                       # CellCancelView, BlockCancelView (all LoginRequiredMixin)
+│       ├── urls.py             # app_name = 'planner'; '' (grid), settings/, blocks/*, cells/cancel/
 │       └── templates/planner/
 │           ├── settings_form.html    # standalone settings page (Sprint 4)
-│           ├── grid.html             # standalone grid page (Sprint 5)
+│           ├── grid.html             # standalone grid page (Sprint 5); loads grid-drag.js/
+│           │                         # contrast.js (Sprint 6, extra_body block)
 │           └── partials/
-│               ├── grid_table.html    # shared <table>, included by grid.html + dashboard.html
-│               ├── block_cell.html    # block-start <td> presentation
-│               └── empty_cell.html    # empty, clickable <td>
+│               ├── grid_table.html    # shared <table> + #grid-toast, included by grid.html +
+│               │                     # dashboard.html
+│               ├── block_cell.html    # block-start <td>: presentation, hover edit/delete
+│               │                     # controls, resize handles (Sprint 6)
+│               ├── empty_cell.html    # empty, clickable <td>; hx-get opens block_form.html
+│               └── block_form.html    # Sprint 6: shared inline create/edit form, overlay-card
+│                                     # layout, repeat-days checkboxes, +/- resize buttons
 ├── templates/
 │   ├── base.html
 │   └── partials/
@@ -80,11 +90,13 @@ django-weekly-planner/
 │           └── primary.html   # shared primary-button partial (<a>/<button>) — Sprint 4
 ├── static/
 │   ├── css/
-│   │   ├── input.css        # Tailwind v4 source (CSS-first config)
+│   │   ├── input.css        # Tailwind v4 source (CSS-first config); .htmx-request rule (Sprint 6)
 │   │   └── app.css          # compiled output — committed, not built in CI
 │   └── js/
 │       ├── htmx.min.js      # vendored, not CDN-loaded
-│       └── theme.js
+│       ├── theme.js
+│       ├── grid-drag.js     # Sprint 6: Pointer Events drag-to-resize, document-delegated
+│       └── contrast.js      # Sprint 6 (early PRD 7.2.2): block text-color luminance rule
 └── db.sqlite3               # gitignored
 ```
 
@@ -109,8 +121,11 @@ to the PRD's literal wording later.
 | PRD 4.4.3: settings rendered as "a dropdown panel/card in the dashboard toolbar" | A no-JS **`<details>`/`<summary>`** dropdown (PRD §9.2's own documented "Menus/dropdowns" pattern), containing the real `PlannerSettingsForm`, posting as a plain (non-HTMX) `POST` to `planner:settings` | HTMX-driven interactivity is explicitly Sprint 6 scope; wiring an HTMX fragment swap here would pull that forward. A plain POST that redirects back to `core:dashboard` on success already satisfies 4.4.3's own wording ("on save, redirect ... to re-render the grid") without adding scope. `DashboardView` gained a small `get_context_data()` building the bound form — the one Python change needed to make the dropdown work; everything else is template-only. |
 | PRD 5.1.1: grid builder returns "a matrix of rows × 7 cells" | `build_week_grid()` returns typed dataclasses (`WeekGrid`/`GridRow`/`GridCell`), plus `out_of_range_blocks` and `unplaced_blocks` lists not named in the PRD | Same matrix shape and semantics, just attribute access instead of raw nested lists/dicts — friendlier for `{% for %}` template iteration (R2). The two extra lists are where PRD R3's "clamp/flag blocks... instead of deleting them" guidance concretely lives: a block can fail to render either because its stored time falls outside `[day_start, day_end)` (`out_of_range_blocks`) or because, after interval-snapping, no free row was left in its day's column (`unplaced_blocks`) — a distinct, rarer failure mode surfaced during `code-reviewer`'s pass (see below). Neither list is consumed by any template yet; the data just isn't silently lost. |
 | PRD 4.1.4's `get_rowspan(interval)` (Sprint 4) used floor division | Changed this sprint to **round-half-up**, via a new shared `round_half_up()` helper in `apps/planner/models.py` | `code-reviewer` caught that `get_rowspan()` (`90 // 60 == 1`) disagreed with `grid.py`'s own independent rowspan computation for the same block (`2`, via round-half-up) — the PRD's own 5.1.3 explicitly requires "snap display to nearest slot boundary," which floor division cannot produce. Fixed by extracting one shared `round_half_up()` function (alongside `minutes_since_midnight()`, this codebase's established single home for time-math helpers) and having both `get_rowspan()` and `grid.py` use it, so they can no longer disagree. `get_rowspan()` itself was not removed — it remains documented model API and Sprint 8.1.1's planned test target, just corrected. |
+| PRD 6.1.2/6.1.3 imply separate `BlockCreateFormView` (GET) and `BlockCreateView` (POST) classes | **One `BlockCreateView(CreateView)`** handling both verbs | `CreateView` already natively handles GET (unbound/initial form) and POST (validate+save) — a second, near-identical class would be pure duplication with no behavioral benefit, against NFR-01. Same reasoning applies to `BlockUpdateView` for 6.2.1/6.2.2. |
+| PRD 6.1.3/6.2.2/6.3.3 say re-render "the affected day column fragment" | **Every mutating view re-renders the entire grid table** (`_render_grid_response()`, `apps/planner/views.py`) | The grid is a single native `<table>` using `rowspan` for vertical merges (Sprint 5). Any mutation can reshape which rows are `'occupied'` vs. `'empty'`/`'block-start'` for a whole day column, changing how many `<td>` elements exist across multiple `<tr>` rows — not safely expressible as a small HTMX out-of-band patch without desync risk. The PRD's own 6.1.3 wording explicitly offers "simply re-render the affected day column... for correctness" as the sanctioned simpler fallback; re-rendering the whole table (cheap — pure Python over ≤100 blocks, NFR-03) is that same idea taken to its simplest, always-correct conclusion. `code-reviewer` reviewed this design decision directly (not just the resulting code) and confirmed it sound, while flagging one accepted side effect — see the Sprint 6 section below. |
+| PRD 6.2.3 implies a `DeleteView` | **A small custom `View`, POST-only** (`BlockDeleteView`) | The generic `DeleteView`'s GET-renders-a-confirmation-page default is unused scope here — the confirmation step is the client-side `hx-confirm` attribute, not a server-rendered page. |
 
-Everything else in Sprints 1–5 follows the PRD as written.
+Everything else in Sprints 1–6 follows the PRD as written.
 
 ---
 
@@ -143,6 +158,25 @@ well under WCAG AA; `slate-500` measures ~4.76:1). `code-reviewer` verified this
 independently and flagged it as a good one-off but a good candidate for promotion to a named §9.1
 token once Sprint 6/7 need the same "neutral block" concept again (color picker's "no color"
 option, palette panel) — not done yet, single call site today.
+
+**Hover-control icon buttons (Sprint 6)**: `block_cell.html`'s edit/delete icon buttons use a
+translucent `bg-black/20`/`hover:bg-black/40` scrim rather than PRD §9.2's documented Danger token
+(`bg-rose-600`/`hover:bg-rose-700`) for delete. `code-reviewer` judged this a deliberate, acceptable
+exception rather than drift: these buttons sit on top of an *arbitrary user-chosen hex background*
+(or the colorless fallback above), and a fixed `rose-600` fill could itself clash with or fail
+contrast against some user colors, whereas a translucent black scrim reliably darkens any
+background it sits on. Not promoted to a token; single call site.
+
+**Color-swatch keyboard focus (Sprint 6)**: the hand-rolled color-swatch radios in
+`block_form.html` (`class="peer sr-only"`, needed because Django's `RadioSelect` subwidgets don't
+expose each choice's `hex_code`) initially had a visible ring only for `peer-checked`, not
+`peer-focus` — `code-reviewer` caught this as a genuine NFR-06 violation (a keyboard user tabbing
+through swatches had no visual indication of focus). Fixed with
+`peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1` on
+both swatch `<span>`s, mirroring the existing `peer-checked:ring-offset-1` sibling pattern already
+in the same file (which is also the only other `ring-offset` usage anywhere in the project — no
+new convention was invented). Each radio `<input>` also gained `aria-label` (the color's name, or
+`'No color'`) rather than relying solely on the ancestor `<label>`'s `title` attribute.
 
 ---
 
@@ -347,22 +381,151 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Block interactivity (Sprint 6)
+
+- **Swap strategy**: every block-mutating view — `BlockCreateView`, `BlockUpdateView`,
+  `BlockDeleteView`, `BlockResizeView`, and the repeat-across-days path folded into create — shares
+  one helper, `_render_grid_response()` (`apps/planner/views.py`), which re-runs `build_week_grid()`
+  and re-renders the *entire* `planner/partials/grid_table.html` fragment on every success (and on
+  a rejected resize). See the deviations table above for why whole-table replacement was chosen
+  over a per-cell/per-column patch. The **one exception**: opening or cancelling an inline form
+  (GET) never touches the matrix at all, so `BlockCreateView`/`BlockUpdateView`'s GET handling and
+  the two small cancel views (`CellCancelView`, `BlockCancelView`) stay scoped to a single `<td>`
+  swap.
+- **The success/failure retarget problem**: the same `<form>` (in the shared
+  `planner/partials/block_form.html`) declares `hx-target="#grid-table" hx-swap="outerHTML"` for
+  its success path, but an invalid submission must swap back into the form's own small
+  `<td id="block-form">`, not dump a bare form fragment into the full grid target. Since one
+  element can't declare two different targets for the same trigger, `BlockCreateView.form_invalid()`
+  /`BlockUpdateView.form_invalid()` set `HX-Retarget: #block-form` + `HX-Reswap: outerHTML` response
+  headers, which override the swap target/style for that one response only (confirmed against the
+  htmx docs via Context7). `#block-form` is a **fixed** id, not derived from pk/day/time, precisely
+  because a data-derived selector could desync if the user edits the day/time fields before an
+  invalid submit. Known, accepted edge case (see below).
+- **Toast/notice channel**: a single persistent `<div id="grid-toast" hx-swap-oob="true">` lives at
+  the top of `grid_table.html` (a sibling before the `#grid-table` wrapper, both top-level in the
+  partial's own output — confirmed via Context7 that OOB matching is by id against the current DOM
+  regardless of nesting depth, but top-level placement is the unambiguous case). Every mutating
+  view always passes `toast_message`/`toast_level` context vars, even as empty strings, so the div
+  re-renders (and clears) on every single mutation — a stale error from one action can never linger
+  after an unrelated, clean action. Used for resize/extend/shrink rejections (`toast_level='error'`)
+  and repeat-across-days skip notices (`toast_level='info'`).
+- **Ownership and validation**: `TimeBlockForm` (`apps/planner/forms.py`) requires a `user` kwarg,
+  set on `self.instance` inside `__init__` rather than in any view's `form_valid()` — a real,
+  non-obvious ordering constraint: `ModelForm._post_clean()` calls `instance.full_clean()` during
+  `is_valid()`, which runs *before* `form_valid()`, so `TimeBlock.clean()`'s overlap check (which
+  filters by `self.user`) would silently validate against `user=None` if set any later. Every
+  pk-scoped view (`BlockUpdateView`, `BlockDeleteView`, `BlockResizeView`, `BlockCancelView`) filters
+  by `request.user` *before* the pk lookup, so a cross-user pk is a 404, never a 403 or a silent
+  leak — independently re-verified by both `qa-tester` and `code-reviewer`.
+- **Drag-to-resize** (`static/js/grid-drag.js`): Pointer Events (not mouse events, for tablet
+  support per PRD §4), delegated from `document` rather than bound to individual handle elements,
+  since every HTMX mutation replaces block cells — and their handles — with brand-new DOM nodes
+  that would silently carry no listeners if bound directly. Purely a visual preview until
+  `pointerup`, when exactly one `htmx.ajax()` call fires to `BlockResizeView`; the server
+  clamps/re-validates regardless of what the client computed (NFR-08).
+- **Keyboard/click resize fallback** (PRD 6.3.4): folded into `BlockUpdateView` itself as a
+  POST `action=extend`/`action=shrink` branch (`_handle_resize_action()`), rather than a separate
+  view, since it's a fallback on the same edit action, not a distinct feature.
+- **Repeat-across-days** (PRD 6.4.1/6.4.2): `TimeBlockForm.repeat_days` (a non-model
+  `CheckboxSelectMultiple`) is only rendered in create mode (`block_form.html`) — repeating an
+  *edit* of an existing instance isn't a meaningful action. `BlockCreateView.form_valid()` saves the
+  primary block, then attempts a per-day copy for each selected day (skipping the primary's own
+  day), catching `ValidationError` per copy so one overlapping day doesn't abort the rest; skipped
+  days are named in the toast.
+- **Three bugs found and fixed before sign-off, not shipped as first-written**:
+  1. `static/js/grid-drag.js`'s `htmx.ajax()` call for the drag-release POST initially omitted
+     `source` from its context object. Confirmed via Context7 (reading the actual htmx source) that
+     without a `source` element, htmx never walks up the DOM to collect ancestor `hx-headers` — so
+     `base.html`'s global CSRF-token header would never have been attached, and the request would
+     have failed with a 403 in a real browser. Fixed by passing `source: drag.cell` (the dragged
+     block's own `<td>`, a DOM descendant of `<body hx-headers=...>`). Caught by this session's own
+     review before `qa-tester`/`code-reviewer` ran, then independently confirmed correct by both.
+  2. `code-reviewer` found `BlockUpdateView._handle_resize_action()` (the '+/-' keyboard fallback)
+     clamped only to the absolute `[00:00, 24:00)` calendar day, never to the user's configured
+     `PlannerSettings.day_start`/`day_end` — unlike its sibling `BlockResizeView` (the drag
+     endpoint), which correctly clamped to the visible day range. Reproduced directly: with
+     `day_end=20:00`, extending a `19:00-20:00` block via the `+` button silently saved
+     `19:00-21:00` with no rejection and no toast — a stored/displayed-state mismatch invisible
+     until `day_end` was later widened. Fixed by extracting a shared `_day_range_minutes()` helper
+     (`apps/planner/views.py`) used by both resize code paths, so they can no longer silently
+     diverge; the keyboard fallback now rejects (error toast, block unchanged) rather than
+     partially clamping, since a fixed single-slot nudge has no sensible "partial clamp" to fall
+     back to the way a free-position drag does.
+  3. `code-reviewer` also found `views.py`'s `_time_from_minutes()` and `grid.py`'s
+     `_minutes_to_time()` were byte-for-byte identical private functions in two different modules —
+     directly contradicting `models.py`'s own `minutes_since_midnight()` docstring, which claims to
+     be "the single, centralized implementation... so the rule is never re-implemented elsewhere"
+     for the same minutes-of-day math (just the reverse direction). Fixed by moving one public
+     `time_from_minutes()` into `apps/planner/models.py` alongside `minutes_since_midnight()` and
+     `round_half_up()`; both call sites now import it, and both private duplicates were deleted
+     outright (not left as thin wrappers).
+- **Reviewed and deliberately deferred, not shipped as fixes this sprint**:
+  - Any grid-wide mutation (e.g. resizing block A) silently discards any *other* still-open,
+    unsubmitted create/edit form elsewhere in the grid (e.g. one opened on block B), since the
+    whole `#grid-table` gets replaced. `code-reviewer` confirmed this is real but judged it an
+    acceptable consequence of the documented whole-table-swap design — no data is lost (nothing in
+    the discarded form was ever submitted), and building a client-side "unsaved form" guard would
+    itself grow `grid-drag.js`'s state footprint against R1's explicit warning. A future
+    nice-to-have, not a defect.
+  - The `#block-form` fixed-id retarget mechanism assumes at most one inline form is open at a
+    time. Nothing currently prevents a user from opening a second form while a first sits
+    unsubmitted (confirmed reachable by `qa-tester`); if that happens, an invalid submission from
+    either form retargets to the first `#block-form` match in document order. Documented directly
+    in `block_form.html`'s own comment as a known, accepted rare edge case.
+  - Minor design-token/cleanup items raised by `code-reviewer` — the Danger-token deviation on the
+    hover-control delete button (see design system section above, judged intentional, not
+    drift), dead `focus:ring-2` CSS on `.block-label` (that div isn't natively focusable, so the
+    rule can never match — harmless, just unused), the "no color" swatch's `×` glyph using
+    `text-slate-400` unconditionally instead of a light/dark pairing, and the exact §9.2
+    Secondary-button class string now being hand-rolled across four templates (a
+    `partials/buttons/secondary.html` extraction, mirroring the existing `primary.html`, is the
+    recommended follow-up once a fifth call site would otherwise appear).
+- **`static/js/contrast.js` implemented a sprint early** (PRD 7.2.2 is nominally Sprint 7 scope):
+  `htmx-interaction` built the JS luminance-based text-contrast rule this sprint as a natural
+  extension of the color-swatch/block-cell work, retiring the Sprint 5 `text-white`-fixed
+  placeholder. `code-reviewer` reviewed this explicitly and did not consider it NFR-01 scope creep
+  — small, single-purpose, no new dependency, replaces documented placeholder rather than adding
+  net-new complexity. Marked `[x]` in the PRD ahead of its nominal sprint, with this note, so it
+  isn't miscounted or redone in Sprint 7.
+- **Verification**: this session ran a full create/edit/delete/resize/extend-shrink/cancel/
+  repeat-across-days/ownership-isolation smoke test via Django's test client before handing off to
+  `qa-tester`, which then ran a deeper adversarial pass (row-collision and out-of-range scenarios
+  produced through the real HTTP endpoints rather than ORM seeding, toast-staleness-clearing
+  across sequential mutations, `repeat_days` edge cases including a same-day self-skip, and a
+  from-scratch CSRF-enforcement re-test of the drag-resize path). `code-reviewer` then ran an
+  independent pass — reading the module docstrings' own design rationale before judging it, not
+  just the resulting code — and found the three bugs above, all fixed and independently
+  re-verified afterward (both the originally-reported scenario and, for the resize-clamp fix, a
+  regression check that `BlockResizeView`'s already-correct behavior was unchanged). `manage.py
+  check` and `makemigrations --check --dry-run` stayed clean throughout (no model field changes
+  this sprint).
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
-  not configured in this environment. Auth, landing/dashboard, planner settings, and now the grid
-  itself were all verified via Django's test client (status codes, redirect targets, response body
-  assertions, DB-state checks, and — new this sprint — actual HTML table-structure parsing) and
-  every template's class strings were spot-checked against PRD §9, but nothing has been rendered in
-  a real browser — no visual layout, hover/focus states, dark-mode flash, or responsive breakpoint
-  check has been done. Three concrete, still-unconfirmed layout questions are now stacked up: the
-  auth pages' `min-h-screen` centered card possibly not fitting one viewport (Sprint 3), the
-  settings `<details>` dropdown's `absolute`-positioned panel possibly clipping at narrow widths
-  (Sprint 4), and now whether a 18+ row grid table at `max-h-[75vh]` produces an awkward
-  nested-scrollbar experience (page scroll + inner vertical scroll + inner horizontal scroll all at
-  once) on a narrow viewport (Sprint 5). Run
-  `claude mcp add playwright -- npx @playwright/mcp@latest` **before Sprint 6** — drag-to-resize
-  (PRD 6.3) has no other realistic way to be verified, and this gap is now three sprints deep.
+  not configured in this environment. Auth, landing/dashboard, planner settings, the read-only
+  grid, and now every block-interactivity flow have all been verified via Django's test client
+  (status codes, redirect targets, response headers including `HX-Retarget`/`HX-Reswap`, response
+  body assertions, DB-state checks, and HTML table-structure parsing) and every template's class
+  strings were spot-checked against PRD §9, but nothing has been rendered in a real browser — no
+  visual layout, hover/focus states, dark-mode flash, or responsive breakpoint check has been done.
+  This sprint made the gap materially worse, not just "one sprint deeper": **the actual pointer-drag
+  gesture in `static/js/grid-drag.js` (`pointerdown`/`pointermove`/`pointerup`, the live preview
+  overlay tracking the cursor, `touch-action: none` on tablets) has never been exercised at all** —
+  every verification of it so far has only confirmed the `BlockResizeView` endpoint it eventually
+  calls behaves correctly, via direct HTTP requests standing in for what the JS *should* produce.
+  Four concrete, still-unconfirmed layout/interaction questions are now stacked up: the auth pages'
+  `min-h-screen` centered card possibly not fitting one viewport (Sprint 3), the settings
+  `<details>` dropdown's `absolute`-positioned panel possibly clipping at narrow widths (Sprint 4),
+  whether an 18+ row grid table at `max-h-[75vh]` produces an awkward nested-scrollbar experience
+  (Sprint 5), and now the entire drag-to-resize gesture plus the hover-controls'
+  `group-hover`/`focus-within` show/hide behavior and the `contrast.js` luminance rule's visual
+  correctness (Sprint 6). Run `claude mcp add playwright -- npx @playwright/mcp@latest` **before
+  Sprint 7** — this gap is now four sprints deep, and Sprint 6 is the first sprint whose primary
+  deliverable (drag-to-resize) has literally never been confirmed to work in a browser at all.
 - **No tests, no Docker.** Deliberately deferred to Sprints 8 and 9 per the PRD.
 
 ---

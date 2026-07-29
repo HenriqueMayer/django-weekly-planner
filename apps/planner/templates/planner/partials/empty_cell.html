@@ -1,19 +1,31 @@
 {% comment %}
 Renders one 'empty' grid cell (PRD 5.2.4): a clickable, unoccupied
 time-slot. Self-sufficient (no ancestor styling assumed) so it renders
-correctly both inside `grid_table.html` and, later, when Sprint 6 swaps
-it back in standalone after a delete/cancel HTMX response.
+correctly both inside `grid_table.html` and standalone, when Sprint 6
+swaps it back in after a create-cancel (`planner:cell-cancel`) or a
+delete (full grid re-render) HTMX response.
 
 Usage, from a `{% for cell in row.cells %}` loop:
     {% include 'planner/partials/empty_cell.html' with cell=cell %}
 
-No click handler or `hx-get` wiring yet -- that's Sprint 6.1.2's job.
-This only supplies the visual affordance (hover background, pointer
-cursor) plus the `data-day`/`data-start`/`data-end` attributes Sprint 6
-needs to build its `hx-get` request straight from this markup, without
-having to touch this template again.
+Sprint 6 (PRD 6.1.2): clicking this `<td>` opens the inline create form
+in place (`hx-get` to `planner:block-create` with this slot's day/start/
+end as query params -- `BlockCreateView`'s GET reads them straight back
+via `request.GET`). `hx-target="this" hx-swap="outerHTML"` replaces this
+exact `<td>` with `block_form.html`'s `<td id="block-form" rowspan="1">`,
+never touching the rest of the grid (opening/cancelling a form never
+changes the matrix, per this sprint's swap-strategy notes in
+apps/planner/views.py). The `data-day`/`data-start`/`data-end` attributes
+are kept even though the `hx-get` URL below is built straight from
+`cell.day`/`cell.slot_start`/`cell.slot_end` in this same template
+context (no JS needs to read them) -- they stay for markup
+self-description and as a stable hook for any future JS.
 {% endcomment %}
 <td
+    hx-get="{% url 'planner:block-create' %}?day={{ cell.day }}&start={{ cell.slot_start|time:'H:i' }}&end={{ cell.slot_end|time:'H:i' }}"
+    hx-target="this"
+    hx-swap="outerHTML"
+    hx-trigger="click"
     data-day="{{ cell.day }}"
     data-start="{{ cell.slot_start|time:'H:i' }}"
     data-end="{{ cell.slot_end|time:'H:i' }}"
