@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<svg xmlns="http://www.w3.org/2000/svg" width="834" height="1040" viewBox="0 0 834 1040">
+    <rect x="0" y="0" width="834" height="1040" fill="#ffffff"></rect>
+    
+    <rect x="64" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="174" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="284" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="394" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="504" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="614" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="724" y="0" width="110" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="64" y="32" width="110" height="28" fill="#4ce6ab" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="174" y="32" width="110" height="28" fill="#4ce6ab" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="284" y="32" width="110" height="28" fill="#4ce6ab" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="394" y="32" width="110" height="28" fill="#4ce6ab" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="504" y="32" width="110" height="28" fill="#4ce6ab" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="64" y="88" width="110" height="84" fill="#e34ce6" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="284" y="88" width="110" height="84" fill="#e34ce6" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="504" y="88" width="110" height="84" fill="#e34ce6" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="64" y="200" width="110" height="392" fill="#3b3956" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="174" y="200" width="110" height="392" fill="#3b3956" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="284" y="200" width="110" height="392" fill="#3b3956" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="394" y="200" width="110" height="392" fill="#3b3956" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    <rect x="504" y="200" width="110" height="392" fill="#3b3956" stroke="#e2e8f0" stroke-width="1"></rect>
+    
+    
+    <text x="70" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Monday</text>
+    
+    <text x="180" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Tuesday</text>
+    
+    <text x="290" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Wednesday</text>
+    
+    <text x="400" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Thursday</text>
+    
+    <text x="510" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Friday</text>
+    
+    <text x="620" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Saturday</text>
+    
+    <text x="730" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">Sunday</text>
+    
+    <text x="6" y="50" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">06:00</text>
+    
+    <text x="70" y="48" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Wake Up</text>
+    
+    <text x="180" y="48" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Wake Up</text>
+    
+    <text x="290" y="48" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Wake Up</text>
+    
+    <text x="400" y="48" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Wake Up</text>
+    
+    <text x="510" y="48" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Wake Up</text>
+    
+    <text x="6" y="78" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">06:30</text>
+    
+    <text x="6" y="106" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">07:00</text>
+    
+    <text x="70" y="104" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">GYM</text>
+    
+    <text x="290" y="104" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">GYM</text>
+    
+    <text x="510" y="104" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">GYM</text>
+    
+    <text x="6" y="134" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">07:30</text>
+    
+    <text x="6" y="162" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">08:00</text>
+    
+    <text x="6" y="190" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">08:30</text>
+    
+    <text x="6" y="218" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">09:00</text>
+    
+    <text x="70" y="216" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Work</text>
+    
+    <text x="180" y="216" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Work</text>
+    
+    <text x="290" y="216" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Work</text>
+    
+    <text x="400" y="216" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Work</text>
+    
+    <text x="510" y="216" font-family="sans-serif" font-size="11" font-weight="normal" fill="#ffffff">Work</text>
+    
+    <text x="6" y="246" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">09:30</text>
+    
+    <text x="6" y="274" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">10:00</text>
+    
+    <text x="6" y="302" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">10:30</text>
+    
+    <text x="6" y="330" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">11:00</text>
+    
+    <text x="6" y="358" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">11:30</text>
+    
+    <text x="6" y="386" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">12:00</text>
+    
+    <text x="6" y="414" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">12:30</text>
+    
+    <text x="6" y="442" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">13:00</text>
+    
+    <text x="6" y="470" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">13:30</text>
+    
+    <text x="6" y="498" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">14:00</text>
+    
+    <text x="6" y="526" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">14:30</text>
+    
+    <text x="6" y="554" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">15:00</text>
+    
+    <text x="6" y="582" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">15:30</text>
+    
+    <text x="6" y="610" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">16:00</text>
+    
+    <text x="6" y="638" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">16:30</text>
+    
+    <text x="6" y="666" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">17:00</text>
+    
+    <text x="6" y="694" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">17:30</text>
+    
+    <text x="6" y="722" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">18:00</text>
+    
+    <text x="6" y="750" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">18:30</text>
+    
+    <text x="6" y="778" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">19:00</text>
+    
+    <text x="6" y="806" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">19:30</text>
+    
+    <text x="6" y="834" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">20:00</text>
+    
+    <text x="6" y="862" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">20:30</text>
+    
+    <text x="6" y="890" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">21:00</text>
+    
+    <text x="6" y="918" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">21:30</text>
+    
+    <text x="6" y="946" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">22:00</text>
+    
+    <text x="6" y="974" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">22:30</text>
+    
+    <text x="6" y="1002" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">23:00</text>
+    
+    <text x="6" y="1030" font-family="sans-serif" font-size="12" font-weight="normal" fill="#0f172a">23:30</text>
+    
+</svg>
