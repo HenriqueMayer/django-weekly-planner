@@ -5,12 +5,16 @@
 {% block content %}
     {% comment %}
     --- Page header + toolbar (PRD 3.2.1) ---
-    Settings and Palette are inert placeholders: their views/URLs don't
-    exist until Sprint 4 (settings) and Sprint 7 (palette), so they are
-    plain disabled <button> elements rather than links that would 404.
-    The theme toggle already lives in the navbar (templates/partials/
-    navbar.html, #theme-toggle) and is intentionally not duplicated
-    here -- FR-14 only asks for it to be available on every screen.
+    Palette is still an inert placeholder: its views/URLs don't exist
+    until Sprint 7, so it stays a plain disabled <button> rather than a
+    link that would 404. Settings is now live (PRD 4.4.3): a no-JS
+    <details>/<summary> dropdown (PRD §9.2 "Menus/dropdowns") revealing
+    a card panel with the `settings_form` (DashboardView, PRD 4.4.2/4.4.3)
+    posted plainly (no HTMX yet -- that wiring is Sprint 6 scope) to
+    `planner:settings`. The theme toggle already lives in the navbar
+    (templates/partials/navbar.html, #theme-toggle) and is intentionally
+    not duplicated here -- FR-14 only asks for it to be available on
+    every screen.
     {% endcomment %}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -18,12 +22,40 @@
             <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Your time-blocking grid, Monday through Sunday.</p>
         </div>
         <div class="flex items-center gap-3">
-            <button
-                type="button"
-                disabled
-                title="Grid settings — coming soon"
-                class="cursor-not-allowed rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 opacity-50 dark:border-slate-600 dark:text-slate-200"
-            >Settings</button>
+            <details class="relative">
+                <summary
+                    class="list-none cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 [&::-webkit-details-marker]:hidden"
+                >Settings</summary>
+
+                {% comment %}
+                Card pattern (PRD §9.2). Width is a full-bleed
+                `100vw - 2rem` (matching the page's `px-4` gutters) below
+                the `sm` breakpoint so the panel can't overflow a narrow
+                viewport, and a fixed `w-80` at `sm:` and above once
+                there's room. `right-0` keeps it aligned under the
+                summary regardless of the toolbar's flex layout.
+                {% endcomment %}
+                <div class="absolute right-0 z-20 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700">
+                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grid settings</h2>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Slot interval, day range, and time format (FR-06).</p>
+
+                    {% if settings_form.non_field_errors %}
+                        <div class="mt-3 space-y-1">
+                            {% for error in settings_form.non_field_errors %}
+                                <p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <form method="post" action="{% url 'planner:settings' %}" class="mt-4 space-y-4">
+                        {% csrf_token %}
+                        {% for field in settings_form %}
+                            {% include 'partials/form_field.html' with field=field %}
+                        {% endfor %}
+                        {% include 'partials/buttons/primary.html' with label='Save settings' %}
+                    </form>
+                </div>
+            </details>
             <button
                 type="button"
                 disabled

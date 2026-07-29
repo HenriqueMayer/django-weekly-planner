@@ -1,0 +1,31 @@
+{% comment %}
+Shared "Primary button" component (PRD §9.2 "Primary button" pattern).
+Renders either a plain `<a href>` link or a `<button type="submit">`
+depending on whether an `href` variable was supplied, so every
+primary-button call site shares this one class string instead of
+duplicating it across templates (NFR-05/R5). Self-sufficient: no ancestor
+styling assumed, so it is safe in both full-page renders and standalone
+HTMX fragment swaps.
+
+Usage (link) -- `{% url %}` can't be passed inline to `with`, so resolve
+it to a variable first:
+    {% url 'accounts:signup' as signup_url %}
+    {% include 'partials/buttons/primary.html' with href=signup_url label='Sign up' %}
+
+Usage (submit button -- omit `href`):
+    {% include 'partials/buttons/primary.html' with label='Save settings' %}
+
+`label` must be plain text -- every current call site uses one, and this
+partial does not support inner HTML/markup in the link/button body.
+{% endcomment %}
+{% if href %}
+    <a
+        href="{{ href }}"
+        class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+    >{{ label }}</a>
+{% else %}
+    <button
+        type="submit"
+        class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+    >{{ label }}</button>
+{% endif %}

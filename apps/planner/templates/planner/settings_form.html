@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}Grid settings{% endblock %}
+
+{% block content %}
+    {% comment %}
+    Minimal standalone page for `SettingsUpdateView` (PRD 4.4.2). Real
+    toolbar integration (dropdown/panel UX, PRD 4.4.3) is a later task for
+    django-frontend/htmx-interaction -- this page just needs to work when
+    visited directly at /planner/settings/. Card pattern per PRD §9.2,
+    form field rendering reuses the shared `partials/form_field.html`
+    partial (same pattern as apps/accounts templates).
+    {% endcomment %}
+    <div class="mx-auto max-w-xl">
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grid settings</h1>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Control your weekly grid's slot interval, day range, and time format (FR-06).
+            </p>
+
+            {% if form.non_field_errors %}
+                <div class="mt-4 space-y-1">
+                    {% for error in form.non_field_errors %}
+                        <p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" action="{% url 'planner:settings' %}" class="mt-6 space-y-4">
+                {% csrf_token %}
+                {% for field in form %}
+                    {% include 'partials/form_field.html' with field=field %}
+                {% endfor %}
+                {% include 'partials/buttons/primary.html' with label='Save settings' %}
+            </form>
+        </div>
+    </div>
+{% endblock %}

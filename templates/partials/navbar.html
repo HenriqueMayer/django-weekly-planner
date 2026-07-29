@@ -7,10 +7,8 @@
 
         <div class="flex items-center gap-3">
             {% if request.user.is_authenticated %}
-                <a
-                    href="{% url 'core:dashboard' %}"
-                    class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >Dashboard</a>
+                {% url 'core:dashboard' as dashboard_url %}
+                {% include 'partials/buttons/primary.html' with href=dashboard_url label='Dashboard' %}
                 <form method="post" action="{% url 'accounts:logout' %}">
                     {% csrf_token %}
                     <button
@@ -23,10 +21,8 @@
                     href="{% url 'accounts:login' %}"
                     class="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >Login</a>
-                <a
-                    href="{% url 'accounts:signup' %}"
-                    class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >Sign up</a>
+                {% url 'accounts:signup' as signup_url %}
+                {% include 'partials/buttons/primary.html' with href=signup_url label='Sign up' %}
             {% endif %}
 
             {% comment %}

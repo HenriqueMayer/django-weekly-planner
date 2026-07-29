@@ -21,10 +21,7 @@
                 {% for field in form %}
                     {% include 'partials/form_field.html' with field=field %}
                 {% endfor %}
-                <button
-                    type="submit"
-                    class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >Sign up</button>
+                {% include 'partials/buttons/primary.html' with label='Sign up' %}
             </form>
 
             <p class="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">

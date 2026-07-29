@@ -436,23 +436,23 @@ Dark mode uses Tailwind's `class` strategy (`dark:` variants), toggled by a smal
 
 ### Sprint 4 — Planner Domain (Models, Signals, Admin, Settings)
 
-- [ ] **4.1 Models**
-    - [ ] 4.1.1 Implement `BlockColor(TimestampedModel)`: `user` FK (CASCADE), `name` (50), `hex_code` (7) with a hex-format validator; `unique_together (user, name)`; `__str__`.
-    - [ ] 4.1.2 Implement `PlannerSettings(TimestampedModel)`: `user` OneToOne (CASCADE), `slot_interval` (choices 30/60, default 60), `day_start` (default 06:00), `day_end` (default 00:00), `time_format` (choices '24h'/'12h', default '24h'); `__str__`.
-    - [ ] 4.1.3 Implement `TimeBlock(TimestampedModel)`: `user` FK (CASCADE), `label` (200), `day_of_week` (IntegerField with `DAY_CHOICES` 0–6), `start_time`, `end_time`, `color` FK (null/blank, SET_NULL); ordering by `day_of_week`, `start_time`; `__str__`.
-    - [ ] 4.1.4 Implement `TimeBlock.get_duration_minutes()` treating `end_time == 00:00` as 24:00; add `get_rowspan(interval)` helper.
-    - [ ] 4.1.5 Implement `TimeBlock.clean()`: start < end (midnight rule), overlap check against the same user's blocks on the same day (exclude self on update); call `full_clean()` in `save()`.
-    - [ ] 4.1.6 Create and run migrations.
-- [ ] **4.2 Signals**
-    - [ ] 4.2.1 Create `apps/planner/signals.py`: `post_save` on `User` creating default `PlannerSettings`.
-    - [ ] 4.2.2 Register signals in `PlannerConfig.ready()`; verify settings row exists after a fresh signup.
-- [ ] **4.3 Admin**
-    - [ ] 4.3.1 Register `TimeBlock` (list: label, user, day, start, end, color; filters: day, user), `BlockColor`, `PlannerSettings` in `apps/planner/admin.py`.
-- [ ] **4.4 Settings UI**
-    - [ ] 4.4.1 Create `PlannerSettingsForm` (interval, day_start, day_end, time_format) with Tailwind widgets.
-    - [ ] 4.4.2 Create `SettingsUpdateView(LoginRequiredMixin, UpdateView)` bound to the current user's settings; route under `planner/settings/`.
-    - [ ] 4.4.3 Render settings as a dropdown panel/card in the dashboard toolbar; on save, redirect (or HTMX-refresh) to re-render the grid.
-    - [ ] 4.4.4 Validate `day_start < day_end` (midnight rule) at the form level.
+- [x] **4.1 Models**
+    - [x] 4.1.1 Implement `BlockColor(TimestampedModel)`: `user` FK (CASCADE), `name` (50), `hex_code` (7) with a hex-format validator; `unique_together (user, name)`; `__str__`. *(Deviation: `Meta.constraints = [UniqueConstraint(fields=['user', 'name'], ...)]` instead of `unique_together` — current Django 6.0 docs recommend `UniqueConstraint` over `unique_together`, confirmed via Context7; same DB-level behavior — see `docs/ARCHITECTURE.md`.)*
+    - [x] 4.1.2 Implement `PlannerSettings(TimestampedModel)`: `user` OneToOne (CASCADE), `slot_interval` (choices 30/60, default 60), `day_start` (default 06:00), `day_end` (default 00:00), `time_format` (choices '24h'/'12h', default '24h'); `__str__`.
+    - [x] 4.1.3 Implement `TimeBlock(TimestampedModel)`: `user` FK (CASCADE), `label` (200), `day_of_week` (IntegerField with `DAY_CHOICES` 0–6), `start_time`, `end_time`, `color` FK (null/blank, SET_NULL); ordering by `day_of_week`, `start_time`; `__str__`.
+    - [x] 4.1.4 Implement `TimeBlock.get_duration_minutes()` treating `end_time == 00:00` as 24:00; add `get_rowspan(interval)` helper. *(Note: the midnight exception only inspects `end_time`, so a 00:00–00:00 block is a full 1440-minute/24h block rather than a validation error — a deliberate reading of PRD R3's "treat 00:00 end as 24:00" rule, not a gap; see `docs/ARCHITECTURE.md`.)*
+    - [x] 4.1.5 Implement `TimeBlock.clean()`: start < end (midnight rule), overlap check against the same user's blocks on the same day (exclude self on update); call `full_clean()` in `save()`.
+    - [x] 4.1.6 Create and run migrations.
+- [x] **4.2 Signals**
+    - [x] 4.2.1 Create `apps/planner/signals.py`: `post_save` on `User` creating default `PlannerSettings`.
+    - [x] 4.2.2 Register signals in `PlannerConfig.ready()`; verify settings row exists after a fresh signup.
+- [x] **4.3 Admin**
+    - [x] 4.3.1 Register `TimeBlock` (list: label, user, day, start, end, color; filters: day, user), `BlockColor`, `PlannerSettings` in `apps/planner/admin.py`.
+- [x] **4.4 Settings UI**
+    - [x] 4.4.1 Create `PlannerSettingsForm` (interval, day_start, day_end, time_format) with Tailwind widgets.
+    - [x] 4.4.2 Create `SettingsUpdateView(LoginRequiredMixin, UpdateView)` bound to the current user's settings; route under `planner/settings/`.
+    - [x] 4.4.3 Render settings as a dropdown panel/card in the dashboard toolbar; on save, redirect (or HTMX-refresh) to re-render the grid. *(Built as a no-JS `<details>`/`<summary>` dropdown per §9.2's documented pattern, plain POST (HTMX wiring is Sprint 6 scope) redirecting back to `core:dashboard` on success — see `docs/ARCHITECTURE.md`.)*
+    - [x] 4.4.4 Validate `day_start < day_end` (midnight rule) at the form level.
 
 ### Sprint 5 — Grid Rendering (Server-Side)
 
