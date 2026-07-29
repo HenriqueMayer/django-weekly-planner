@@ -58,8 +58,38 @@
            older browsers without support for `name` simply keep today's
            independent-open behavior, so this is a strict improvement with
            no regression path.
+
+        Sprint 10 (new feature, print export): `print:hidden` added here
+        so this toolbar (Settings/Palette/any future Export trigger)
+        never prints -- none of these controls make sense on paper. The
+        "My Week" heading/subtitle above is deliberately NOT hidden
+        (this `{% comment %}` sits on the toolbar `<div>` only, a sibling
+        of the heading block, not a shared ancestor) -- a printed page
+        showing a title is a nicer result than a bare grid.
         {% endcomment %}
-        <div class="relative flex items-center gap-3">
+        <div class="relative flex items-center gap-3 print:hidden">
+        {% comment %}
+        Sprint 10 (new feature, export): the Settings/Palette/Export panel
+        `<div>`s below all share one identical, long class string (full-
+        bleed on mobile, fixed `w-80` at `sm:` and up, same card
+        treatment). Adding this third panel is what pushed that string
+        past the "3+ identical repeats" threshold this codebase's own
+        `primary.html`/`secondary.html` button partials were extracted at
+        (see docs/ARCHITECTURE.md's "Design system" section) -- flagged by
+        `code-reviewer`. A full new shared partial would be the wrong fix
+        here, though: unlike the button partials (reused across many
+        templates -- navbar, landing, both auth pages), this exact panel
+        wrapper is only ever used inside this one file, wrapping three
+        genuinely different bodies (a form, an HTMX-driven palette list, a
+        plain action list) that Django's `{% include %}` has no way to
+        parametrize as passed-in markup anyway (unlike Jinja2, DTL's
+        `{% include %}` takes only variables, never a content block). A
+        single `{% with %}`-scoped variable is the proportionate fix: one
+        definition, three uses, no new file, no new abstraction to
+        maintain for a pattern that doesn't cross this template's own
+        boundary.
+        {% endcomment %}
+        {% with panel_class='absolute right-0 z-30 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700' %}
             <details name="dashboard-toolbar">
                 {% include 'partials/buttons/secondary.html' with as_summary=True label='Settings' %}
 
@@ -73,7 +103,7 @@
                 itself, so it stays correctly aligned to the row's right
                 edge regardless of which of the two triggers opened it.
                 {% endcomment %}
-                <div class="absolute right-0 z-30 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700">
+                <div class="{{ panel_class }}">
                     <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grid settings</h2>
                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Slot interval, day range, and time format (FR-06).</p>
 
@@ -107,7 +137,7 @@
                 7.1.1); this `<details>` wrapper only provides the no-JS
                 toggle chrome around it, exactly as it does for Settings.
                 {% endcomment %}
-                <div class="absolute right-0 z-30 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700">
+                <div class="{{ panel_class }}">
                     <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Color palette</h2>
                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Reusable colors for your blocks (FR-13).</p>
 
@@ -116,6 +146,91 @@
                     </div>
                 </div>
             </details>
+            <details name="dashboard-toolbar">
+                {% include 'partials/buttons/secondary.html' with as_summary=True label='Export' %}
+
+                {% comment %}
+                Sprint 10 (new feature, export -- not FR-numbered, added on
+                top of the already-complete Sprint 1-9 plan): third toolbar
+                dropdown, same card `class` strings and the same
+                `name="dashboard-toolbar"` exclusive-accordion group as
+                Settings/Palette above -- opening Export auto-closes
+                whichever of the other two was open, and vice versa, for
+                free, no JS (see the shared row wrapper's own comment above
+                for why `relative`/`name` live there rather than on each
+                individual `<details>`).
+
+                Markdown and SVG below are plain `<a href>` links, no HTMX,
+                no JS: `planner:export-markdown`/`planner:export-svg`
+                (apps/planner/urls.py) are both simple
+                `LoginRequiredMixin`-protected GET endpoints that set their
+                own `Content-Disposition: attachment` response header --
+                the browser's native download handling already does all the
+                work, so routing either through HTMX (which would swap the
+                response body into the page instead of downloading it)
+                would be actively wrong here, not merely unnecessary.
+
+                PNG and Print need real client-side JS instead
+                (`static/js/export.js`): a PNG has no server-rendered
+                representation to link to at all -- it is a canvas render
+                of whatever `#grid-table` looks like *right now*, computed
+                entirely in the browser -- and "print" is not a resource to
+                fetch, it is the browser's own `window.print()` API. Both
+                are rendered through `secondary.html`'s plain-`<button>`
+                mode via its `data_export_png`/`data_export_print` flags
+                (added this sprint, alongside its existing `hx_get`/
+                `hx_target`/`hx_swap` flags -- see that file's own header
+                comment) -- each renders its own fixed, literal `data-*`
+                attribute name for export.js to delegate off of `document`,
+                the exact same delegation pattern static/js/grid-drag.js's
+                own module comment already justifies (every HTMX mutation
+                can replace DOM around a trigger; delegating from something
+                never itself swapped out is the only listener that can't go
+                stale). `code-reviewer` caught an earlier draft of this
+                dropdown hand-copying `secondary.html`'s plain-button class
+                string verbatim instead of routing through it -- itself the
+                exact kind of duplication that partial exists to prevent --
+                so PNG/Print now go through the shared partial like every
+                other button on this page, not around it.
+
+                The action rows below use `flex flex-col gap-2`, not the
+                `space-y-2`/`space-y-4` this project otherwise reaches for
+                (PRD §9.2): `space-y-*` works by giving every child but
+                the first a `margin-top`, which only visibly stacks
+                children that are already block-level (true of
+                `form_field.html`'s `<div>` rows). `<a>` and `<button>` are
+                inline/inline-block by default, so four of them side by
+                side inside this width-constrained panel could sit
+                two-to-a-row instead of one-per-row under plain
+                `space-y-2` -- `flex flex-col` guarantees one row each
+                regardless, without touching a single class on the copied
+                button/link elements themselves.
+
+                No `print:hidden` is added anywhere in this new `<details>`
+                -- confirmed by re-reading the shared toolbar row wrapper
+                above, which already carries `print:hidden` (added this
+                same sprint), so this trigger and its panel are already
+                excluded from any printed/PDF output without needing their
+                own copy of that class.
+                {% endcomment %}
+                <div class="{{ panel_class }}">
+                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Export</h2>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Markdown lists every block you own. SVG, PNG, and Print show what’s visible in your current day range.</p>
+
+                    <div class="mt-4 flex flex-col gap-2">
+                        {% url 'planner:export-markdown' as export_markdown_url %}
+                        {% include 'partials/buttons/secondary.html' with href=export_markdown_url label='Markdown' %}
+
+                        {% url 'planner:export-svg' as export_svg_url %}
+                        {% include 'partials/buttons/secondary.html' with href=export_svg_url label='SVG' %}
+
+                        {% include 'partials/buttons/secondary.html' with label='PNG' data_export_png=True %}
+
+                        {% include 'partials/buttons/secondary.html' with label='Print / Save as PDF' data_export_print=True %}
+                    </div>
+                </div>
+            </details>
+        {% endwith %}
         </div>
     </div>
 
@@ -148,9 +263,19 @@
     only ever renders inside this page's toolbar dropdown -- the
     standalone `/planner/` page never embeds `palette_panel.html` (PRD
     §13's Sprint 7 scope explicitly excludes a standalone palette page),
-    so there is nothing there for this script to pair.
+    so there is nothing there for this script to pair. export.js (Sprint
+    10, new feature) joins the same list for the identical reason
+    color-sync.js already does: the new Export dropdown (`[data-export-png]`
+    / `[data-export-print]`) only renders inside this page's toolbar above
+    -- planner/grid.html never got its own Export trigger in this pass --
+    so there is nothing for export.js's click delegation to bind to there
+    either. Both of its behaviors are otherwise fully generic (it only
+    reads `#grid-table table`, which both pages do share), so if a future
+    pass ever adds an Export dropdown to planner/grid.html too, this same
+    script -- unmodified -- covers it.
     {% endcomment %}
     <script src="{% static 'js/grid-drag.js' %}"></script>
     <script src="{% static 'js/contrast.js' %}"></script>
     <script src="{% static 'js/color-sync.js' %}"></script>
+    <script src="{% static 'js/export.js' %}"></script>
 {% endblock %}

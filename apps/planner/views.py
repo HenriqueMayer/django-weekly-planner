@@ -41,6 +41,7 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView, UpdateView
 
+from apps.planner.export import build_svg_export, render_week_markdown
 from apps.planner.forms import BlockColorForm, PlannerSettingsForm, TimeBlockForm
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
@@ -605,3 +606,64 @@ class ColorDeleteView(LoginRequiredMixin, View):
         color = get_object_or_404(BlockColor, pk=kwargs['pk'], user=request.user)
         color.delete()
         return _render_palette_response(request)
+
+
+class ExportMarkdownView(LoginRequiredMixin, View):
+    """Exports the logged-in user's week as a Markdown document (Sprint
+    10, a new, user-requested feature added on top of the original PRD
+    sprint plan -- not FR-numbered).
+
+    GET-only, plain `View` (no template involved on this path at all --
+    `render_week_markdown()` returns a plain string): mirrors
+    `GridView`'s `settings_obj`/`blocks` pattern exactly. No pk is taken
+    from the URL: everything is scoped to `request.user` (NFR-07).
+    """
+
+    def get(self, request, *args, **kwargs):
+        settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
+        # No `select_related('color')` here (unlike every other view in
+        # this file) -- render_week_markdown() never reads `block.color`,
+        # so that join would be pure overhead for this one view.
+        blocks = TimeBlock.objects.filter(user=request.user)
+        content = render_week_markdown(blocks, settings_obj.time_format)
+        response = HttpResponse(content, content_type='text/markdown; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="weekly-planner.md"'
+        return response
+
+
+class ExportSVGView(LoginRequiredMixin, View):
+    """Exports the logged-in user's week as an SVG image (Sprint 10, a
+    new, user-requested feature added on top of the original PRD sprint
+    plan -- not FR-numbered).
+
+    Builds the same `WeekGrid`, from the same `build_week_grid()` call,
+    that `GridView` does, so the exported SVG's block placement
+    (collision re-anchoring, out-of-range clamping) always matches the
+    on-screen grid -- then hands it to `build_svg_export()` for the
+    pixel-positioned drawing primitives. No pk is taken from the URL:
+    everything is scoped to `request.user` (NFR-07).
+
+    Renders `planner/partials/grid_export.svg` (owned by
+    `django-frontend`) with one context variable, `svg_export` -- an
+    `apps.planner.export.SvgExport` instance (`.width`, `.height`,
+    `.rects` -- each an `SvgRect` with `.x`/`.y`/`.width`/`.height`/
+    `.fill`/`.stroke` -- and `.texts` -- each an `SvgText` with `.x`/
+    `.y`/`.content`/`.fill`/`.font_size`/`.font_weight`). The template
+    only needs to iterate `rects`/`texts`; no arithmetic belongs there
+    (PRD R2's "templates only iterate", applied to this export exactly
+    as it already applies to `grid_table.html`).
+    """
+
+    def get(self, request, *args, **kwargs):
+        settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
+        blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
+        week_grid = build_week_grid(settings_obj, blocks)
+        svg_export = build_svg_export(week_grid)
+        response = render(
+            request,
+            'planner/partials/grid_export.svg',
+            {'svg_export': svg_export},
+            content_type='image/svg+xml',
+        )
+        response['Content-Disposition'] = 'attachment; filename="weekly-planner.svg"'
+        return response

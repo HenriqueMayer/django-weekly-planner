@@ -17,6 +17,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 7 — Color Palette, Theming & UX Polish: complete.**
 **Sprint 8 — Automated Tests: complete.**
 **Sprint 9 — Docker, Documentation & Open-Source Template Release: complete (except 9.3.2, deliberately withheld).**
+**Sprint 10 — Grid Export (Markdown, SVG, PNG, PDF): complete.** *(Post-launch addition, not in the PRD's original §13 plan — see below.)*
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -41,8 +42,12 @@ no separate nginx), and has a rewritten `README.md`, a new `CONTRIBUTING.md`, an
 (PolyForm Noncommercial 1.0.0 — personal use only, selling not permitted, a deliberate deviation
 from the PRD's "open-source" framing, see below), making it ready to serve as a public,
 source-available template — everything except actually
-tagging and publishing it (9.3.2), which is withheld this session by explicit instruction. See
-§13 in the PRD for the full sprint plan and checklist.
+tagging and publishing it (9.3.2), which is withheld this session by explicit instruction. On top
+of the original nine-sprint plan, users can now also export their week as Markdown, SVG, a
+client-side-rendered PNG, or a printed/PDF page (`static/js/export.js` + a new "Export" toolbar
+dropdown) — a post-launch feature added entirely without any new runtime dependency, per explicit
+user direction. The automated suite now stands at 101 tests. See §13 in the PRD for the full
+sprint plan and checklist.
 
 ---
 
@@ -87,8 +92,12 @@ django-weekly-planner/
 │   │   └── templates/accounts/  # login.html, signup.html
 │   └── planner/               # domain models/settings — Sprint 4; grid — Sprint 5; CRUD — Sprint 6
 │       ├── models.py           # BlockColor, PlannerSettings, TimeBlock (all TimestampedModel);
-│       │                       # also minutes_since_midnight()/round_half_up()/time_from_minutes()
+│       │                       # also minutes_since_midnight()/round_half_up()/time_from_minutes()/
+│       │                       # format_time_label() (Sprint 10: promoted here, public, from
+│       │                       # what used to be grid.py's private _format_time_label())
 │       ├── grid.py             # build_week_grid() — pure-Python matrix builder (Sprint 5)
+│       ├── export.py           # Sprint 10 (new feature): render_week_markdown(),
+│       │                       # build_svg_export() + SvgRect/SvgText/SvgExport dataclasses
 │       ├── signals.py          # post_save on User -> auto-create PlannerSettings
 │       ├── apps.py             # PlannerConfig.ready() registers signals.py
 │       ├── admin.py            # all three models registered
@@ -98,13 +107,17 @@ django-weekly-planner/
 │       │                       # BlockUpdateView, BlockDeleteView, BlockResizeView,
 │       │                       # CellCancelView, BlockCancelView, + Sprint 7's PaletteView,
 │       │                       # ColorCreateView, ColorUpdateView, ColorCancelView,
-│       │                       # ColorDeleteView (all LoginRequiredMixin)
+│       │                       # ColorDeleteView, + Sprint 10's ExportMarkdownView,
+│       │                       # ExportSVGView (all LoginRequiredMixin)
 │       ├── urls.py             # app_name = 'planner'; '' (grid), settings/, blocks/*,
-│       │                       # cells/cancel/, colors/* (Sprint 7)
+│       │                       # cells/cancel/, colors/* (Sprint 7), export/* (Sprint 10)
 │       ├── tests/              # Sprint 8: package, not a flat tests.py (3 distinct concerns)
 │       │   ├── test_models.py   # 26 tests — duration/rowspan/clean()/overlap/hex/unique/SET_NULL/signal
-│       │   ├── test_views.py    # 39 tests — auth, ownership isolation, CRUD/resize, grid_oob, settings
-│       │   └── test_grid.py     # 8 tests — build_week_grid() matrix, SimpleTestCase, no DB
+│       │   ├── test_views.py    # 47 tests — auth, ownership isolation, CRUD/resize, grid_oob,
+│       │   │                    # settings, + Sprint 10's export view tests
+│       │   ├── test_grid.py     # 8 tests — build_week_grid() matrix, SimpleTestCase, no DB
+│       │   └── test_export.py   # Sprint 10: 11 tests — render_week_markdown()/build_svg_export(),
+│       │                        # SimpleTestCase, no DB
 │       └── templates/planner/
 │           ├── settings_form.html    # standalone settings page (Sprint 4)
 │           ├── grid.html             # standalone grid page (Sprint 5); loads grid-drag.js/
@@ -112,7 +125,9 @@ django-weekly-planner/
 │           └── partials/
 │               ├── grid_table.html    # shared <table> + #grid-toast, included by grid.html +
 │               │                     # dashboard.html; grid_oob flag (Sprint 7) lets it also
-│               │                     # serve as an OOB refresh for palette CRUD responses
+│               │                     # serve as an OOB refresh for palette CRUD responses;
+│               │                     # print:max-h-none print:overflow-visible print:ring-0
+│               │                     # on its wrapper (Sprint 10, PDF-via-print export)
 │               ├── block_cell.html    # block-start <td>: presentation, hover edit/delete
 │               │                     # controls, resize handles (Sprint 6)
 │               ├── empty_cell.html    # empty, clickable <td>; hx-get opens block_form.html
@@ -123,19 +138,21 @@ django-weekly-planner/
 │               ├── color_row.html        # Sprint 7: one BlockColor's display row
 │               ├── color_form_row.html   # Sprint 7: shared create/edit form, dual-moded like
 │               │                        # block_form.html; hand-rolled hex_code + color picker
-│               └── color_add_trigger.html # Sprint 7: "+ Add color" button / cancel-add target
+│               ├── color_add_trigger.html # Sprint 7: "+ Add color" button / cancel-add target
+│               └── grid_export.svg        # Sprint 10 (new feature): standalone SVG export
+│                                          # template, iterates SvgExport, zero layout math
 ├── templates/
 │   ├── base.html
 │   └── partials/
-│       ├── navbar.html
-│       ├── footer.html
+│       ├── navbar.html        # print:hidden (Sprint 10)
+│       ├── footer.html        # print:hidden (Sprint 10)
 │       ├── form_field.html    # shared label/widget/help/error row — Sprint 2
 │       └── buttons/
 │           ├── primary.html   # shared primary-button partial (<a>/<button>) — Sprint 4
 │           └── secondary.html # shared secondary-button partial (<a>/<button>/<summary>,
-│                               # +hx_get/hx_target/hx_swap) — Sprint 7, extracted once a 6th
-│                               # hand-duplicated call site crossed Sprint 6's own pre-flagged
-│                               # threshold
+│                               # +hx_get/hx_target/hx_swap, +data_export_png/data_export_print
+│                               # [Sprint 10]) — Sprint 7, extracted once a 6th hand-duplicated
+│                               # call site crossed Sprint 6's own pre-flagged threshold
 ├── static/
 │   ├── css/
 │   │   ├── input.css        # Tailwind v4 source (CSS-first config); .htmx-request rule (Sprint 6)
@@ -145,9 +162,12 @@ django-weekly-planner/
 │       ├── theme.js
 │       ├── grid-drag.js     # Sprint 6: Pointer Events drag-to-resize, document-delegated
 │       ├── contrast.js      # Sprint 6 (early PRD 7.2.2): block text-color luminance rule
-│       └── color-sync.js    # Sprint 7: pairs a native <input type=color> with a hex text
-│                             # input via data-hex-sync, document-delegated (same rationale
-│                             # as grid-drag.js/contrast.js)
+│       ├── color-sync.js    # Sprint 7: pairs a native <input type=color> with a hex text
+│       │                     # input via data-hex-sync, document-delegated (same rationale
+│       │                     # as grid-drag.js/contrast.js)
+│       └── export.js        # Sprint 10 (new feature): canvas-based PNG render of #grid-table
+│                             # (getBoundingClientRect()/getComputedStyle() per cell) +
+│                             # window.print() trigger, document-delegated (same rationale)
 └── db.sqlite3               # gitignored
 ```
 
@@ -880,6 +900,121 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
 
 ---
 
+## Grid export (Sprint 10)
+
+Added entirely after Sprint 9 by explicit user request ("Add a option to export (PDF, PNG, SVG,
+markdown)") — not part of the PRD's original nine-sprint plan (see FR-16, §13 Sprint 10). Before
+implementing anything, the user was asked to choose between a zero-new-dependency approach (client
+rendering + the browser's native print-to-PDF) and a heavier server-rendered-file approach (adding
+PDF/image-generation libraries); they chose the zero-new-dependency path, and it was honored
+throughout — `pyproject.toml`/`uv.lock` are completely untouched by this feature.
+
+- **Markdown and SVG are server-rendered, pure Python** (`apps/planner/export.py`), mirroring
+  `grid.py`'s own PRD-R2 discipline ("compute everything server-side, templates only iterate, no
+  logic-heavy DTL"): `render_week_markdown(blocks, time_format)` groups an already-user-filtered
+  `TimeBlock` iterable by day (via `TimeBlock.DAY_CHOICES`, so every day gets a heading even with
+  zero blocks) and formats each as a `- <start>–<end> <label>` bullet; `build_svg_export(week_grid)`
+  turns the *exact same* `WeekGrid` matrix the on-screen `<table>` renders from into flat,
+  pixel-positioned `SvgRect`/`SvgText` dataclasses, so the exported SVG's block placement always
+  matches what's on screen (same collision re-anchoring, same out-of-range clamping) — reusing
+  `build_week_grid()` here rather than re-deriving positions from raw blocks was a deliberate
+  design choice, not a shortcut. `format_time_label()` (used by both the Markdown export and
+  `grid.py`'s on-screen row labels) was promoted from a private `grid.py` function to a public one
+  in `models.py`, alongside the module's other centralized time helpers — the same move already
+  made once before for `time_from_minutes()` (Sprint 6).
+- **`ExportMarkdownView`/`ExportSVGView`** (`apps/planner/views.py`): both `LoginRequiredMixin`,
+  GET-only, no pk in either URL (there's nothing to scope by pk — an export is always "my whole
+  week"), following the exact same `PlannerSettings.objects.get_or_create(user=...)` +
+  `TimeBlock.objects.filter(user=...)` pattern every other view in this file uses (NFR-07). Markdown
+  returns `text/markdown; charset=utf-8`; SVG renders a new template,
+  `apps/planner/templates/planner/partials/grid_export.svg` — a standalone file (no
+  `{% extends %}`, since it *is* the entire downloaded response body, not one piece of a page).
+  Both set `Content-Disposition: attachment` so the browser downloads them directly.
+- **A real bug found by `qa-tester`'s adversarial pass, fixed, and covered by a regression test on
+  both call sites**: a `TimeBlock.label` containing an embedded newline (not reachable via a normal
+  browser `<input type="text">` keystroke, but not rejected by the model — plain
+  `CharField(max_length=200)` — or the form either) let a crafted label inject a fabricated
+  `## Heading`/`- bullet` line into the exported Markdown document, landing under the wrong day's
+  section, since the raw label was interpolated straight into an f-string with no newline handling.
+  Fixed with `safe_label = ' '.join(block.label.split())` before formatting each bullet (collapses
+  any embedded whitespace, including newlines, to single spaces) — and, for consistency, the same
+  normalization was applied to `build_svg_export()`'s block-label text too (`code-reviewer` flagged
+  this second call site; SVG's own default whitespace handling meant it wasn't a live bug there, but
+  a single invariant enforced the same way at both call sites is worth the one extra line).
+- **SVG autoescaping is deliberately left on** — no `|safe`, no `{% autoescape off %}` anywhere in
+  `grid_export.svg` — since a block label is untrusted user text flowing directly into XML markup.
+  Verified well-formed (not just eyeballed) by rendering the real template with an adversarial
+  `&`/`<`/`>`/quote-carrying label and parsing the response with Python's
+  `xml.etree.ElementTree.fromstring()`, both independently by the implementing agent, this session,
+  and `code-reviewer`.
+- **PNG export is entirely client-side, zero new dependencies**: `static/js/export.js` reads the
+  live `#grid-table table` DOM (`getBoundingClientRect()`/`getComputedStyle()` per `<th>`/`<td>` —
+  background, border, and either the `.block-label` child's text or the cell's own text), draws it
+  onto an off-screen `<canvas>` sized by `devicePixelRatio` for crispness on high-DPI screens, and
+  downloads it via `canvas.toDataURL('image/png')`. No server endpoint exists for this format at
+  all — there is nothing to link to, since a PNG is a snapshot of whatever the grid looks like
+  *right now* in this browser. Reads whatever the browser already resolved for colors (a block's
+  real hex, the colorless fallback, header/time-label tints) with no knowledge of this app's color
+  logic baked into the script itself. Iterating only `th`/`td` elements (never their descendants)
+  structurally excludes the hover-control edit/delete buttons and resize-handle strips from ever
+  being drawn — verified by reading `block_cell.html`'s actual current markup, not assumed.
+- **PDF export is the browser's own native print-to-PDF, zero new dependencies**: print-only
+  Tailwind `print:` variant classes (a core v4 variant, no config needed) — `print:hidden` on
+  `templates/partials/navbar.html`, `templates/partials/footer.html`, and the dashboard toolbar row;
+  `print:max-h-none print:overflow-visible print:ring-0` on `#grid-table`'s wrapper in
+  `grid_table.html`, removing the on-screen scroll-clamp so the *entire* grid prints, not just
+  whatever's currently scrolled into view — plus a "Print / Save as PDF" button that calls
+  `window.print()`. Nothing else: no PDF-generation library, no separate print-preview page.
+- **Dashboard UI**: a third toolbar `<details name="dashboard-toolbar">` ("Export"), joining the
+  existing Settings/Palette exclusive-accordion group for free. Markdown/SVG are plain `<a href>`
+  downloads (routing them through HTMX would swap the response into the page instead of downloading
+  it — actively wrong, not merely unnecessary); PNG/Print are buttons carrying
+  `data-export-png`/`data-export-print` for `export.js` to delegate off of `document`, the same
+  correctness requirement `grid-drag.js`'s own module comment already documents (a future HTMX
+  mutation could in principle replace DOM around a directly-bound listener; delegating from
+  `document` means there's nothing to ever re-bind).
+- **Two real NFR-05 duplication regressions caught by `code-reviewer` in the first draft, both
+  fixed**:
+  1. The toolbar panel's long wrapper class string (full-bleed on mobile, fixed `w-80` at `sm:` and
+     up, same card treatment) was hand-copied a third time for the new Export panel, crossing the
+     "3+ identical repeats" threshold this codebase's own button partials were extracted at. Fixed
+     with a single `{% with panel_class=... %}` value spanning all three `<details>` panels in
+     `dashboard.html` — not a new shared partial file: unlike `primary.html`/`secondary.html`
+     (genuinely reused across many templates — navbar, landing, both auth pages), this exact panel
+     wrapper is only ever used inside this one file, wrapping three genuinely different bodies (a
+     form, an HTMX-driven palette list, a plain action list) that DTL's `{% include %}` has no way
+     to parametrize as passed-in markup anyway (unlike Jinja2). A full new partial would have been
+     disproportionate (NFR-01); a single template-scoped variable was the fix that actually matched
+     the problem's shape.
+  2. The PNG/Print `<button>`s hand-copied `secondary.html`'s plain-button class string verbatim
+     instead of routing through the partial — recreating exactly the duplication that partial
+     exists to prevent. Fixed by adding two narrowly-named, auto-escaped boolean flags,
+     `data_export_png`/`data_export_print`, to `secondary.html`'s plain-button branch (each renders
+     its own fixed, literal attribute name, never an interpolated one) — mirroring the exact shape
+     of that same branch's pre-existing `hx_get`/`hx_target`/`hx_swap` flags, not a new, generic
+     `data-*` passthrough (which would have reopened the raw attribute-string escape hatch this
+     partial's whole design already avoids).
+- **Export fidelity intentionally differs between formats, and the UI now says so**: Markdown lists
+  every block the user owns regardless of their configured day range, while SVG/PNG/Print only show
+  what's visible in the current `[day_start, day_end)` window — exactly like the on-screen grid
+  itself (`out_of_range_blocks`/`unplaced_blocks`, see the Sprint 5 section above). `code-reviewer`
+  flagged this as a real, unmentioned surprise risk; the Export panel's own description text now
+  says so directly rather than leaving it undiscovered.
+- **Verification**: `qa-tester` ran an adversarial HTTP-level pass beyond the implementing agents'
+  own unit/view tests — full and empty weeks, mixed colored/colorless blocks, Markdown- and
+  XML-special characters in labels, both `time_format`s including a midnight-crossing block,
+  two-user ownership isolation (confirmed by reading the actual query code too, not just trusting
+  the HTTP test result), anonymous-auth redirects, and POST-method rejection on both new endpoints
+  — finding the newline-injection bug above and nothing else. `code-reviewer` then independently
+  re-verified the fix by tracing it line-by-line, re-confirmed NFR-07 isolation and NFR-01 (zero new
+  dependencies) by reading the code directly, and found the two duplication issues above. Both
+  passes' findings were fixed and re-verified before sign-off. The automated suite grew from 82 to
+  101 tests (`test_export.py`, new; `test_views.py`'s export-view tests; both new routes added to
+  the existing `AuthProtectionTests` parametrized sweep); `ruff check .`, `manage.py check`, and
+  `makemigrations --check --dry-run` stayed clean throughout.
+
+---
+
 ## Known, expected gaps
 
 - **No browser-verified visual QA.** The Playwright MCP server (required by `qa-tester`) is still
@@ -892,12 +1027,18 @@ are standard (non-HTMX) POSTs and carry their own `{% csrf_token %}` tags instea
   browser — no visual layout, hover/focus states, dark-mode flash, or responsive breakpoint check
   has been done. The pointer-drag gesture in `static/js/grid-drag.js` (Sprint 6) and
   `static/js/color-sync.js`'s bidirectional color-picker/hex-field pairing (Sprint 7) have still
-  never been exercised in a real DOM, only reasoned through by reading their source. Run
-  `claude mcp add playwright -- npx @playwright/mcp@latest` at the next opportunity — this gap is
-  now seven sprints deep and has not been shrinking, only accumulating. Sprint 9's Docker work does
-  **not** close this gap either: it proves the app runs identically in a container (same 82/82
-  tests, same HTTP contract), which is orthogonal to whether anything actually looks or behaves
-  correctly once painted and scripted in a real browser.
+  never been exercised in a real DOM, only reasoned through by reading their source. Sprint 10 adds
+  two more of the same shape: **`static/js/export.js`'s PNG canvas render has never been visually
+  confirmed** (does the drawn image actually look like the on-screen grid, not just "the code reads
+  the right DOM properties" — reasoned through, not seen), and **the print-only CSS's actual
+  printed/PDF output has never been seen either** (does `window.print()` really produce a clean,
+  full, chrome-free page once the browser's own print engine gets involved, not just "the right
+  Tailwind classes are compiled"). Run `claude mcp add playwright -- npx @playwright/mcp@latest` at
+  the next opportunity — this gap is now eight additions deep across ten sprints and has not been
+  shrinking, only accumulating. Neither Sprint 9's Docker work nor Sprint 10's export feature closes
+  this gap: both prove the app runs/behaves identically at the HTTP/data layer (same test suite,
+  same request/response contract), which is orthogonal to whether anything actually looks or
+  behaves correctly once painted and scripted in a real browser.
 - **No CI pipeline.** `manage.py test` and `ruff check` are both clean and documented as the
   commands to run, and now also verified to pass identically inside the Docker image, but nothing
   runs them automatically on push/PR yet — no `.github/workflows/` or equivalent exists. Now that

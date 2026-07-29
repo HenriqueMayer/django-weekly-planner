@@ -62,6 +62,19 @@ CSS by hand, no Playwright in this environment:
    many (if any) day cells render in that same row -- a guaranteed floor,
    not a per-row `{% if %}` computed span (PRD R2).
 
+Sprint 10 (new feature, print export): the `#grid-table` wrapper `<div>`
+(below) also carries `print:max-h-none print:overflow-visible
+print:ring-0`. On screen this wrapper is deliberately height-capped
+(`max-h-[75vh]`) with its own scrollbar (see point 1 above); left as-is
+under `window.print()`, only whatever was scrolled into view at print
+time would actually print, silently cutting most of the week out of the
+page. The print overrides remove the height cap and let the full table
+flow onto as many printed pages as needed instead; `ring-0` just drops
+the on-screen border ring, which adds nothing on paper. Reasoned through
+by hand, not confirmed in a real browser -- see docs/ARCHITECTURE.md's
+"Known, expected gaps" section, which already tracks this class of gap
+for several other UI decisions.
+
 Sprint 6 (htmx-interaction): `id="grid-table"` is the swap target every
 mutating block view (create/edit/delete/resize/repeat-across-days)
 declares via `hx-target="#grid-table" hx-swap="outerHTML"` (see
@@ -107,7 +120,7 @@ responses (`_render_palette_response()`, apps/planner/views.py passes
 existing blocks render, so the grid needs to refresh in the same
 response, not just on a later full page load.
 {% endcomment %}
-<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 print:max-h-none print:overflow-visible print:ring-0">
     <table class="w-full min-w-[760px] table-fixed border-collapse text-xs sm:text-sm">
         <thead>
             <tr>

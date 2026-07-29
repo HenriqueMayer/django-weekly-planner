@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+{% comment %}
+Renders one user's exported weekly grid as a standalone SVG document
+(Sprint 10, new feature -- not part of the original PRD sprint plan; see
+`apps/planner/export.py`'s module docstring for the full feature
+rationale: PNG is drawn client-side from the live DOM and PDF uses the
+browser's native print-to-PDF, neither of which is this template's
+concern -- this file is the server-side SVG format only).
+
+This file renders standalone. It is not a page: `ExportSVGView.get()`
+(apps/planner/views.py) serves it directly as a downloaded
+`weekly-planner.svg` with `content_type='image/svg+xml'`, so unlike
+every other template in this project it deliberately does NOT
+`{% extends 'base.html' %}` -- there is no navbar/footer/`<html>`
+skeleton to inherit, only a bare, self-contained `<svg>` root, exactly
+like the "partials are self-sufficient" contract HTMX fragments already
+follow elsewhere in this codebase (see `grid_table.html`'s docstring),
+just taken one step further since this fragment IS the entire response
+body, not one piece swapped into a larger page.
+
+Why this comment block sits *after* the `<?xml ... ?>` line, unlike
+every other template in this codebase (which opens with its docstring
+comment): the XML declaration is only well-formed as the very first
+thing in the document -- no whitespace, no comment, nothing at all may
+precede it (an XML parser rejects even a single leading blank line, see
+this feature's report for the failure this project hit and fixed while
+building it). This comment block itself renders to nothing, but the
+newline immediately following its own closing tag does not disappear --
+so placing it *before* `<?xml ... ?>` would leave exactly that one
+stray leading newline in the response body. Placing it here instead,
+between the declaration and the root `<svg>` element, is still fine:
+that gap is `Misc` space in XML's own grammar (comments/whitespace are
+explicitly allowed between the prolog and the root element), and it's
+the only position in this file that is both after the mandatory
+declaration and before the root element.
+
+(Note for future editors of this comment: never quote this tag's own
+opening/closing delimiters verbatim inside its own body -- Django's
+comment-tag scanner matches on the raw token stream, not nested
+comment-awareness, so writing out the literal closing-tag text in here
+would terminate this block early and dump the rest of this comment's
+prose straight into the compiled template as if it were real markup.)
+
+Template contract (from `apps.planner.export.build_svg_export()` --
+load-bearing, mirrors `apps/planner/grid.py`'s own "compute everything
+server-side, templates only iterate" precedent, PRD R2): `svg_export`
+(an `apps.planner.export.SvgExport`) arrives with every position, size,
+and color already resolved to plain pixel integers / hex-color strings.
+This template performs zero math and makes zero layout decisions -- it
+only loops over `svg_export.rects` then `svg_export.texts` and emits one
+`<rect>`/`<text>` element per entry, in that order (rects first so every
+text element paints on top of its own rect, never underneath it).
+
+Escaping: Django's autoescaping is on by default project-wide (confirmed
+directly against `config/settings.py` -- `TEMPLATES[0]['OPTIONS']` sets
+no `autoescape: False`, and no `{% autoescape off %}` block appears
+anywhere in this file), so every `{{ }}` variable below -- most
+importantly `text.content`, which carries a user's own free-text block
+label straight into XML markup -- is escaped before being written out.
+Django's escaping converts `&`, `<`, `>` (plus `'`/`"`) to their entity
+equivalents, which is exactly what turns an untrusted label like
+`Q&A <review>` into well-formed XML text content (`Q&amp;A
+&lt;review&gt;`) instead of a parser error or a markup-injection
+vector. Do not wrap any part of this file in `{% autoescape off %}` or
+pipe any variable through `|safe` -- a block label is user-supplied,
+untrusted content, and turning escaping off here would let it break the
+document's own XML well-formedness (a stray `<` or `&` is fatal to an
+XML parser, unlike an HTML parser's much more forgiving error recovery).
+
+Verified well-formed by rendering this exact template through Django's
+template engine (an `apps.planner.export.SvgExport` built with an
+adversarial `&`/`<`/`>`/quote-carrying label, standing in for a hostile
+user-supplied block label) and parsing the response body with Python's
+`xml.etree.ElementTree.fromstring()` -- see this feature's report for
+the transcript; not just eyeballed from the template source.
+{% endcomment %}
+<svg xmlns="http://www.w3.org/2000/svg" width="{{ svg_export.width }}" height="{{ svg_export.height }}" viewBox="0 0 {{ svg_export.width }} {{ svg_export.height }}">
+    <rect x="0" y="0" width="{{ svg_export.width }}" height="{{ svg_export.height }}" fill="#ffffff"></rect>
+    {% for rect in svg_export.rects %}
+    <rect x="{{ rect.x }}" y="{{ rect.y }}" width="{{ rect.width }}" height="{{ rect.height }}" fill="{{ rect.fill }}" stroke="{{ rect.stroke }}" stroke-width="1"></rect>
+    {% endfor %}
+    {% for text in svg_export.texts %}
+    <text x="{{ text.x }}" y="{{ text.y }}" font-family="sans-serif" font-size="{{ text.font_size }}" font-weight="{{ text.font_weight }}" fill="{{ text.fill }}">{{ text.content }}</text>
+    {% endfor %}
+</svg>

@@ -78,7 +78,13 @@ from dataclasses import dataclass, field
 from datetime import time
 from math import ceil
 
-from apps.planner.models import TimeBlock, minutes_since_midnight, round_half_up, time_from_minutes
+from apps.planner.models import (
+    TimeBlock,
+    format_time_label,
+    minutes_since_midnight,
+    round_half_up,
+    time_from_minutes,
+)
 
 
 @dataclass
@@ -134,19 +140,6 @@ class _CellState:
         self.block = block
         self.rowspan = rowspan
         self.clamped = clamped
-
-
-def _format_time_label(value, time_format):
-    """Format a `time` object per `PlannerSettings.time_format` (5.1.2).
-
-    `'24h'` -> `'14:00'`. `'12h'` -> `'2:00 PM'`, built from the portable
-    `%I:%M %p` (avoiding the platform-specific `%-I`) with the leading
-    zero stripped by hand.
-    """
-    if time_format == '12h':
-        formatted = value.strftime('%I:%M %p')
-        return formatted[1:] if formatted.startswith('0') else formatted
-    return value.strftime('%H:%M')
 
 
 def build_week_grid(planner_settings, blocks):
@@ -298,7 +291,7 @@ def build_week_grid(planner_settings, blocks):
             ))
 
         rows.append(GridRow(
-            label=_format_time_label(slot_start_time, time_format),
+            label=format_time_label(slot_start_time, time_format),
             start_time=slot_start_time,
             cells=cells,
         ))

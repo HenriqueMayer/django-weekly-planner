@@ -13,6 +13,8 @@ from apps.planner.views import (
     ColorCreateView,
     ColorDeleteView,
     ColorUpdateView,
+    ExportMarkdownView,
+    ExportSVGView,
     GridView,
     PaletteView,
     SettingsUpdateView,
@@ -34,4 +36,6 @@ urlpatterns = [
     path('colors/<int:pk>/edit/', ColorUpdateView.as_view(), name='color-edit'),
     path('colors/<int:pk>/cancel/', ColorCancelView.as_view(), name='color-cancel'),
     path('colors/<int:pk>/delete/', ColorDeleteView.as_view(), name='color-delete'),
+    path('export/markdown/', ExportMarkdownView.as_view(), name='export-markdown'),
+    path('export/svg/', ExportSVGView.as_view(), name='export-svg'),
 ]

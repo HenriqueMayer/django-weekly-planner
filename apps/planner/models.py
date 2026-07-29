@@ -73,6 +73,28 @@ def time_from_minutes(total_minutes):
     return time(hour, minute)
 
 
+def format_time_label(value, time_format):
+    """Format a `time` object per `PlannerSettings.time_format` (5.1.2).
+
+    `'24h'` -> `'14:00'`. `'12h'` -> `'2:00 PM'`, built from the portable
+    `%I:%M %p` (avoiding the platform-specific `%-I`) with the leading
+    zero stripped by hand.
+
+    Promoted here (Sprint 10) from what used to be a private
+    `apps.planner.grid._format_time_label()`, following the same
+    precedent already set for `time_from_minutes()` (Sprint 6,
+    ARCHITECTURE.md): this is the single, centralized implementation
+    shared by `apps.planner.grid.build_week_grid()` (on-screen row
+    labels) and `apps.planner.export.render_week_markdown()` (the
+    Markdown export), so both agree on how a `time` renders in either
+    format.
+    """
+    if time_format == '12h':
+        formatted = value.strftime('%I:%M %p')
+        return formatted[1:] if formatted.startswith('0') else formatted
+    return value.strftime('%H:%M')
+
+
 class BlockColor(TimestampedModel):
     """A single entry in a user's personal color palette (PRD FR-13)."""
 

@@ -5,8 +5,12 @@ against `dark:bg-slate-900` -- below WCAG AA's 4.5:1 floor for normal
 text (light mode holds, ~4.77:1 against white). Added `dark:text-slate-400`,
 reusing PRD §9.1's own "Text" secondary-text dark token verbatim (no new
 token invented) -- ~6.96:1 against slate-900, comfortably passing.
+
+Sprint 10 (new feature, print export): `print:hidden` added alongside
+the navbar's identical treatment -- site chrome (nav/footer) has no
+place on a printed "My Week" page, only the grid itself should print.
 {% endcomment %}
-<footer class="border-t border-slate-200 dark:border-slate-800 text-sm text-slate-500 dark:text-slate-400">
+<footer class="border-t border-slate-200 dark:border-slate-800 text-sm text-slate-500 dark:text-slate-400 print:hidden">
     <div class="mx-auto max-w-7xl px-4 py-6 flex flex-col items-center justify-between gap-2 sm:flex-row">
         <p>&copy; {% now 'Y' %} Time-Blocking Routine Organizer.</p>
         <a

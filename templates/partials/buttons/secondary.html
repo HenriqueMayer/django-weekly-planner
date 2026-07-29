@@ -17,7 +17,16 @@ Three modes, picked by which variables are passed:
   file and no injection surface even if a value were ever dynamic (it
   never is today -- every current call site passes a resolved, static
   string, the same way `primary.html`'s `href` usage note already
-  requires for `{% url %}` results).
+  requires for `{% url %}` results). Two further optional flags,
+  `data_export_png`/`data_export_print` (Sprint 10, new feature), follow
+  the exact same shape: each renders its own fixed, literal `data-*`
+  attribute name (never an interpolated one) when truthy. This is
+  deliberately NOT a generic `data-*` passthrough (e.g. taking an
+  arbitrary attribute name/value pair) -- that would reopen the raw
+  attribute-string escape hatch this file's `hx_get`/`hx_target`/`hx_swap`
+  precedent already avoids. Two narrowly-named flags for two real call
+  sites is the same proportionate shape as the existing HTMX flags, not a
+  new pattern.
 
 Usage (link) -- `{% url %}` can't be passed inline to `with`, so resolve
 it to a variable first, same as `primary.html`'s own usage note:
@@ -35,6 +44,10 @@ first, same reason as `href` above):
 Usage (`<details>` trigger):
     {% include 'partials/buttons/secondary.html' with as_summary=True label='Settings' %}
 
+Usage (button carrying a fixed `data-*` flag for a document-delegated JS
+listener to bind off of, e.g. static/js/export.js):
+    {% include 'partials/buttons/secondary.html' with label='PNG' data_export_png=True %}
+
 `label` must be plain text, same constraint as `primary.html`.
 {% endcomment %}
 {% if as_summary %}
@@ -50,6 +63,8 @@ Usage (`<details>` trigger):
         {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
         {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
         {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+        {% if data_export_png %}data-export-png{% endif %}
+        {% if data_export_print %}data-export-print{% endif %}
         class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
     >{{ label }}</button>
 {% endif %}

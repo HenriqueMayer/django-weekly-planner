@@ -10,6 +10,7 @@ view.
 """
 
 import re
+import xml.etree.ElementTree as ET
 from datetime import time
 
 from django.contrib.auth import get_user_model
@@ -56,6 +57,8 @@ class AuthProtectionTests(TestCase):
         ('planner:color-edit', 'get', {'pk': 999999}),
         ('planner:color-cancel', 'get', {'pk': 999999}),
         ('planner:color-delete', 'post', {'pk': 999999}),
+        ('planner:export-markdown', 'get', {}),
+        ('planner:export-svg', 'get', {}),
     ]
 
     def test_anonymous_client_is_redirected_to_login(self):
@@ -567,3 +570,138 @@ class MixedOperationSequenceTests(TestCase):
         block_start_cells = [cell for cell in thursday_cells if cell.kind == 'block-start']
         self.assertEqual(len(block_start_cells), 1)
         self.assertEqual(block_start_cells[0].block.label, 'Study')
+
+
+class ExportMarkdownViewTests(TestCase):
+    """Sprint 10 (new feature): `ExportMarkdownView`'s HTTP contract."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(self.user)
+
+    def test_success_returns_200_with_markdown_headers(self):
+        response = self.client.get(reverse('planner:export-markdown'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/markdown; charset=utf-8')
+        self.assertEqual(
+            response['Content-Disposition'], 'attachment; filename="weekly-planner.md"',
+        )
+
+    def test_content_contains_expected_day_headings_and_block_line(self):
+        TimeBlock.objects.create(
+            user=self.user, label='Gym', day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:export-markdown'))
+        content = response.content.decode()
+
+        self.assertIn('## Monday', content)
+        self.assertIn('## Sunday', content)
+        self.assertIn('- 09:00–10:00 Gym', content)
+        self.assertIn('_No blocks._', content)  # every other day
+
+    def test_export_is_scoped_to_request_user(self):
+        """NFR-07: another user's blocks must never appear in this
+        user's exported document."""
+        other_user = User.objects.create_user(username='bob', password='pass12345')
+        TimeBlock.objects.create(
+            user=other_user, label="Bob's secret", day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+        TimeBlock.objects.create(
+            user=self.user, label='Gym', day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:export-markdown'))
+        content = response.content.decode()
+
+        self.assertIn('Gym', content)
+        self.assertNotIn("Bob's secret", content)
+
+    def test_respects_the_users_time_format_setting(self):
+        settings_obj = PlannerSettings.objects.get(user=self.user)
+        settings_obj.time_format = '12h'
+        settings_obj.save()
+        TimeBlock.objects.create(
+            user=self.user, label='Gym', day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:export-markdown'))
+        content = response.content.decode()
+
+        self.assertIn('- 9:00 AM–10:00 AM Gym', content)
+
+
+class ExportSVGViewTests(TestCase):
+    """Sprint 10 (new feature): `ExportSVGView`'s HTTP contract.
+
+    Exercises the real `planner/partials/grid_export.svg` template (no
+    stand-in -- an earlier draft of this test used an in-memory locmem
+    template while the real file didn't exist yet; now that
+    `django-frontend` has shipped it, these tests hit it directly, since
+    testing a fake stand-in forever would verify nothing real).
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(self.user)
+
+    def test_success_returns_200_with_svg_headers(self):
+        response = self.client.get(reverse('planner:export-svg'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/svg+xml')
+        self.assertEqual(
+            response['Content-Disposition'], 'attachment; filename="weekly-planner.svg"',
+        )
+
+    def test_content_contains_expected_rect_count_for_a_known_scenario(self):
+        """Default settings (60-min interval, 06:00-00:00) plus a single
+        one-hour block: 1 whole-document background rect + 7 day-header
+        rects + 1 block rect = 9 (see `grid_export.svg`'s own background
+        `<rect>`, drawn before the loop over `svg_export.rects`)."""
+        TimeBlock.objects.create(
+            user=self.user, label='Gym', day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:export-svg'))
+        content = response.content.decode()
+
+        self.assertEqual(content.count('<rect'), 9)
+        self.assertIn('<text', content)
+        self.assertIn('<svg', content)
+
+    def test_export_is_scoped_to_request_user(self):
+        """NFR-07: another user's block label must never appear in this
+        user's exported SVG."""
+        other_user = User.objects.create_user(username='bob', password='pass12345')
+        TimeBlock.objects.create(
+            user=other_user, label="Bob's secret", day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:export-svg'))
+        content = response.content.decode()
+
+        self.assertNotIn("Bob's secret", content)
+        self.assertEqual(content.count('<rect'), 8)  # background + 7 header rects only
+
+    def test_content_is_well_formed_xml(self):
+        """The real template's output must actually parse as XML, not
+        just contain the right substrings -- guards against the exact
+        class of bug this feature hit while it was being built (a stray
+        leading newline before `<?xml ...?>` breaks every XML parser)."""
+        TimeBlock.objects.create(
+            user=self.user, label='Q&A <review> "quoted"', day_of_week=0,
+            start_time=time(9, 0), end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:export-svg'))
+
+        root = ET.fromstring(response.content)
+        self.assertTrue(root.tag.endswith('svg'))
