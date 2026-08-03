@@ -23,8 +23,8 @@
     {% endcomment %}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">My Week</h1>
-            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Your time-blocking grid, Monday through Sunday.</p>
+            <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-neutral-100">My Week</h1>
+            <p class="mt-1 text-sm text-slate-600 dark:text-neutral-400">Your time-blocking grid, Monday through Sunday.</p>
         </div>
         {% comment %}
         Sprint 7 (7.2.3 responsive audit): `relative` lives on this shared
@@ -89,7 +89,7 @@
         maintain for a pattern that doesn't cross this template's own
         boundary.
         {% endcomment %}
-        {% with panel_class='absolute right-0 z-30 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-slate-800 dark:ring-slate-700' %}
+        {% with panel_class='absolute right-0 z-30 mt-2 w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:w-80 dark:bg-[#313335] dark:ring-[#323232]' %}
             <details name="dashboard-toolbar">
                 {% include 'partials/buttons/secondary.html' with as_summary=True label='Settings' %}
 
@@ -104,8 +104,8 @@
                 edge regardless of which of the two triggers opened it.
                 {% endcomment %}
                 <div class="{{ panel_class }}">
-                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Grid settings</h2>
-                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Slot interval, day range, and time format (FR-06).</p>
+                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-neutral-100">Grid settings</h2>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-neutral-400">Slot interval, day range, and time format (FR-06).</p>
 
                     {% if settings_form.non_field_errors %}
                         <div class="mt-3 space-y-1">
@@ -138,8 +138,8 @@
                 toggle chrome around it, exactly as it does for Settings.
                 {% endcomment %}
                 <div class="{{ panel_class }}">
-                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Color palette</h2>
-                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Reusable colors for your blocks (FR-13).</p>
+                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-neutral-100">Color palette</h2>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-neutral-400">Reusable colors for your blocks (FR-13).</p>
 
                     <div class="mt-4">
                         {% include 'planner/partials/palette_panel.html' with colors=colors %}
@@ -214,8 +214,8 @@
                 own copy of that class.
                 {% endcomment %}
                 <div class="{{ panel_class }}">
-                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Export</h2>
-                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">Markdown lists every block you own. SVG, PNG, and Print show what’s visible in your current day range.</p>
+                    <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-neutral-100">Export</h2>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-neutral-400">Markdown lists every block you own. SVG, PNG, and Print show what’s visible in your current day range.</p>
 
                     <div class="mt-4 flex flex-col gap-2">
                         {% url 'planner:export-markdown' as export_markdown_url %}
@@ -272,10 +272,14 @@
     either. Both of its behaviors are otherwise fully generic (it only
     reads `#grid-table table`, which both pages do share), so if a future
     pass ever adds an Export dropdown to planner/grid.html too, this same
-    script -- unmodified -- covers it.
+    script -- unmodified -- covers it. block-form-close.js (click-away
+    close for the inline block form) is loaded on both grid pages, same
+    as grid-drag.js/contrast.js, since it only has work to do wherever
+    the grid (and therefore the inline form) can render.
     {% endcomment %}
     <script src="{% static 'js/grid-drag.js' %}"></script>
     <script src="{% static 'js/contrast.js' %}"></script>
     <script src="{% static 'js/color-sync.js' %}"></script>
     <script src="{% static 'js/export.js' %}"></script>
+    <script src="{% static 'js/block-form-close.js' %}"></script>
 {% endblock %}

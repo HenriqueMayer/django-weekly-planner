@@ -10,8 +10,8 @@ from apps.planner.models import BlockColor, PlannerSettings, TimeBlock, minutes_
 # the same Tailwind input pattern.
 INPUT_CLASSES = (
     'w-full rounded-lg border border-slate-300 dark:border-slate-600 '
-    'bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 '
-    'dark:text-slate-100 focus:border-indigo-500 focus:ring-indigo-500'
+    'bg-white dark:bg-[#313335] px-3 py-2 text-sm text-slate-900 '
+    'dark:text-neutral-100 focus:border-indigo-500 focus:ring-indigo-500'
 )
 
 

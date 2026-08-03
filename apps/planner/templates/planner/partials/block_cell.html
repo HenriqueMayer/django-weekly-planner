@@ -12,7 +12,7 @@ Background: uses the block's real hex color (`cell.block.color.hex_code`)
 via inline `style` when a color is assigned. When `cell.block.color` is
 null (PRD FR-13's SET_NULL-on-delete case), there is no hex to source a
 `style` from, so a plain neutral Tailwind fill is used instead
-(`bg-slate-500` / `dark:bg-slate-600` -- see the original Sprint 5 note:
+(`bg-slate-500` / `dark:bg-[#3a3a3a]` -- see the original Sprint 5 note:
 the lightest slate step that still holds >= 4.5:1 contrast against
 `text-white` in *light* mode).
 
@@ -51,7 +51,7 @@ Sprint 6 additions (htmx-interaction):
 {% endcomment %}
 <td
     rowspan="{{ cell.rowspan }}"
-    class="group relative rounded-md border border-slate-200 dark:border-slate-700 p-1 align-top text-xs font-medium text-white {% if not cell.block.color %}bg-slate-500 dark:bg-slate-600{% endif %}"
+    class="group relative rounded-md border border-slate-200 dark:border-slate-700 p-1 align-top text-xs font-medium text-white {% if not cell.block.color %}bg-slate-500 dark:bg-[#3a3a3a]{% endif %}"
     {% if cell.block.color %}style="background-color: {{ cell.block.color.hex_code }};" data-bg-hex="{{ cell.block.color.hex_code }}"{% endif %}
     data-pk="{{ cell.block.pk }}"
     data-start="{{ cell.block.start_time|time:'H:i' }}"

@@ -36,7 +36,7 @@ Usage:
         {% for color in colors %}
             {% include 'planner/partials/color_row.html' with color=color %}
         {% empty %}
-            <p class="text-sm text-slate-500 dark:text-slate-400">No colors yet — add one below.</p>
+            <p class="text-sm text-slate-500 dark:text-neutral-400">No colors yet — add one below.</p>
         {% endfor %}
     </div>
     {% include 'planner/partials/color_add_trigger.html' %}

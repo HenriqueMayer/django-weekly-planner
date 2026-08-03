@@ -107,7 +107,7 @@ top-level placement is the documented, unambiguous case regardless of
     hx-swap-oob="true"
     role="status"
     aria-live="polite"
-    class="mb-4 rounded-lg px-4 py-3 text-sm ring-1 {% if toast_message %}{% if toast_level == 'error' %}block bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800{% else %}block bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800{% endif %}{% else %}hidden ring-transparent{% endif %}"
+    class="mb-4 rounded-lg px-4 py-3 text-sm ring-1 {% if toast_message %}{% if toast_level == 'error' %}block bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-800{% else %}block bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-800{% endif %}{% else %}hidden ring-transparent{% endif %}"
 >{{ toast_message }}</div>
 {% comment %}
 Sprint 7 (htmx-interaction): `{% if grid_oob %}hx-swap-oob="true"{% endif %}`
@@ -120,20 +120,20 @@ responses (`_render_palette_response()`, apps/planner/views.py passes
 existing blocks render, so the grid needs to refresh in the same
 response, not just on a later full page load.
 {% endcomment %}
-<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="overflow-x-auto overflow-y-auto max-h-[75vh] rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 print:max-h-none print:overflow-visible print:ring-0">
-    <table class="w-full min-w-[760px] table-fixed border-collapse text-xs sm:text-sm">
+<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="overflow-x-auto overflow-y-auto max-h-[85vh] rounded-xl ring-1 ring-slate-200 dark:ring-[#323232] print:max-h-none print:overflow-visible print:ring-0">
+    <table class="w-full min-w-[1000px] table-fixed border-collapse text-xs sm:text-sm">
         <thead>
             <tr>
-                <th scope="col" class="sticky top-0 left-0 z-20 w-16 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 sm:w-20"></th>
+                <th scope="col" class="sticky top-0 left-0 z-20 w-16 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-[#313335] dark:text-neutral-400 sm:w-20"></th>
                 {% for day in week_grid.day_headers %}
-                    <th scope="col" title="{{ day }}" class="sticky top-0 z-20 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ day|slice:':3' }}</th>
+                    <th scope="col" title="{{ day }}" class="sticky top-0 z-20 border border-slate-200 bg-slate-50 p-2 font-medium text-slate-500 dark:border-slate-700 dark:bg-[#313335] dark:text-neutral-400">{{ day|slice:':3' }}</th>
                 {% endfor %}
             </tr>
         </thead>
         <tbody>
             {% for row in week_grid.rows %}
                 <tr>
-                    <th scope="row" class="sticky left-0 z-10 h-12 border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ row.label }}</th>
+                    <th scope="row" class="sticky left-0 z-10 h-12 border border-slate-200 bg-slate-50 p-2 text-left font-medium text-slate-500 dark:border-slate-700 dark:bg-[#313335] dark:text-neutral-400">{{ row.label }}</th>
                     {% for cell in row.cells %}
                         {% if cell.kind == 'block-start' %}
                             {% include 'planner/partials/block_cell.html' with cell=cell %}

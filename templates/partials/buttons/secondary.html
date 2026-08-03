@@ -24,9 +24,16 @@ Three modes, picked by which variables are passed:
   deliberately NOT a generic `data-*` passthrough (e.g. taking an
   arbitrary attribute name/value pair) -- that would reopen the raw
   attribute-string escape hatch this file's `hx_get`/`hx_target`/`hx_swap`
-  precedent already avoids. Two narrowly-named flags for two real call
-  sites is the same proportionate shape as the existing HTMX flags, not a
-  new pattern.
+   precedent already avoids. Two narrowly-named flags for two real call
+   sites is the same proportionate shape as the existing HTMX flags, not a
+   new pattern.
+
+   A third flag, `data_block_cancel` (added alongside the click-away-close
+   behavior in static/js/block-form-close.js), follows the identical shape:
+   when truthy it renders a bare `data-block-cancel` attribute on the
+   button. It is set on `block_form.html`'s Cancel button so that script
+   can close an open inline form from anywhere on the page, and is scoped
+   to that one call site like the `data_export_*` pair.
 
 Usage (link) -- `{% url %}` can't be passed inline to `with`, so resolve
 it to a variable first, same as `primary.html`'s own usage note:
@@ -51,11 +58,11 @@ listener to bind off of, e.g. static/js/export.js):
 `label` must be plain text, same constraint as `primary.html`.
 {% endcomment %}
 {% if as_summary %}
-    <summary class="list-none cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 [&::-webkit-details-marker]:hidden">{{ label }}</summary>
+    <summary class="list-none cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a] [&::-webkit-details-marker]:hidden">{{ label }}</summary>
 {% elif href %}
     <a
         href="{{ href }}"
-        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]"
     >{{ label }}</a>
 {% else %}
     <button
@@ -65,6 +72,7 @@ listener to bind off of, e.g. static/js/export.js):
         {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
         {% if data_export_png %}data-export-png{% endif %}
         {% if data_export_print %}data-export-print{% endif %}
-        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+        {% if data_block_cancel %}data-block-cancel{% endif %}
+        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]"
     >{{ label }}</button>
 {% endif %}

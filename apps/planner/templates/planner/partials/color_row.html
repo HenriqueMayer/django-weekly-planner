@@ -46,8 +46,8 @@ markup/sizing identical.
 <div id="color-row-{{ color.pk }}" data-color-row class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-2 dark:border-slate-700">
     <div class="flex items-center gap-2">
         <span class="block h-6 w-6 shrink-0 rounded-full ring-1 ring-slate-300 dark:ring-slate-600" style="background-color: {{ color.hex_code }};" aria-hidden="true"></span>
-        <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ color.name }}</span>
-        <span class="text-xs text-slate-500 dark:text-slate-400">{{ color.hex_code }}</span>
+        <span class="text-sm font-medium text-slate-700 dark:text-neutral-200">{{ color.name }}</span>
+        <span class="text-xs text-slate-500 dark:text-neutral-400">{{ color.hex_code }}</span>
     </div>
     <div class="flex gap-1">
         <button
@@ -56,7 +56,7 @@ markup/sizing identical.
             hx-target="closest [data-color-row]"
             hx-swap="outerHTML"
             aria-label="Edit {{ color.name }}"
-            class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-neutral-400 dark:hover:bg-[#3a3a3a] dark:hover:text-slate-200"
         >
             <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
@@ -69,7 +69,7 @@ markup/sizing identical.
             hx-target="#palette-panel"
             hx-swap="outerHTML"
             aria-label="Delete {{ color.name }}"
-            class="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+            class="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-neutral-400 dark:hover:bg-rose-500/15 dark:hover:text-rose-400"
         >
             <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"></path>

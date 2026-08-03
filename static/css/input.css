@@ -30,6 +30,10 @@
 
 @import 'tailwindcss';
 
+@theme {
+    --font-sans: 'Inter', 'system-ui', 'sans-serif';
+}
+
 /* v4 replacement for `darkMode: 'class'`: toggle dark styles from a `.dark`
    class anywhere up the tree instead of `prefers-color-scheme`. The JS that
    adds/removes this class on <html> and persists it to localStorage is
