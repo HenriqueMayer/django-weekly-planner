@@ -14,8 +14,8 @@
     (apps/planner/views.py).
     {% endcomment %}
     <div>
-        <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">My Week</h1>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Your time-blocking grid, Monday through Sunday.</p>
+        <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-neutral-100">My Week</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-neutral-400">Your time-blocking grid, Monday through Sunday.</p>
     </div>
 
     <div class="mt-8">
@@ -28,8 +28,11 @@
     htmx-interaction (Sprint 6): drag-to-resize + block-text-contrast JS is
     scoped to just the two pages that ever render the grid (this page and
     `core/dashboard.html`), not loaded globally from base.html, since
-    nothing else on the site needs it.
+    nothing else on the site needs it. block-form-close.js (click-away
+    close for the inline block form) joins for the same reason -- it only
+    ever has something to do on a page that renders the grid.
     {% endcomment %}
     <script src="{% static 'js/grid-drag.js' %}"></script>
     <script src="{% static 'js/contrast.js' %}"></script>
+    <script src="{% static 'js/block-form-close.js' %}"></script>
 {% endblock %}

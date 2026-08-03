@@ -60,6 +60,7 @@ bin/
 .coverage.*
 htmlcov/
 .pytest_cache/
+.ruff_cache/
 
 # Claude Code project-local agent specs — not meant to ship with the app.
 .claude/

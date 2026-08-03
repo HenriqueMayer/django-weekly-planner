@@ -61,7 +61,7 @@ Swap strategy (Sprint 6, htmx-interaction):
   on that branch.
 {% endcomment %}
 <td id="block-form" class="relative" rowspan="{{ rowspan }}">
-    <div class="absolute z-30 left-0 top-0 w-72 space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+    <div class="absolute z-30 top-0 w-72 space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-[#323232] {% if form.day_of_week.value|add:0 >= 5 %}right-0{% else %}left-0{% endif %}">
         {% if form.non_field_errors %}
             <div class="space-y-1">
                 {% for error in form.non_field_errors %}
@@ -110,7 +110,7 @@ Swap strategy (Sprint 6, htmx-interaction):
             just submitted) -- see `django.forms.BoundField.value()`.
             {% endcomment %}
             <div>
-                <span class="block text-sm font-medium text-slate-700 dark:text-slate-300">Color</span>
+                <span class="block text-sm font-medium text-slate-700 dark:text-neutral-300">Color</span>
                 <div class="mt-1 flex flex-wrap gap-2">
                     {% comment %}
                     Sprint 7 (7.2.1 audit): the `×` glyph previously used
@@ -118,12 +118,12 @@ Swap strategy (Sprint 6, htmx-interaction):
                     cleanup item in docs/ARCHITECTURE.md's Sprint 6 section)
                     -- ~2.56:1 against this card's white background in light
                     mode, well under WCAG AA. Paired with `text-slate-600` /
-                    `dark:text-slate-400`, PRD §9.1's own secondary-text
+                    `dark:text-neutral-400`, PRD §9.1's own secondary-text
                     token, fixes both themes (~7.6:1 light, ~5.7:1 dark).
                     {% endcomment %}
                     <label class="cursor-pointer" title="No color">
                         <input type="radio" name="color" value="" class="peer sr-only" aria-label="No color" {% if not form.color.value %}checked{% endif %}>
-                        <span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-xs text-slate-600 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:ring-offset-1 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:border-slate-600 dark:text-slate-400">&times;</span>
+                        <span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-xs text-slate-600 peer-checked:ring-2 peer-checked:ring-indigo-500 peer-checked:ring-offset-1 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:border-slate-600 dark:text-neutral-400">&times;</span>
                     </label>
                     {% for color in form.fields.color.queryset %}
                         <label class="cursor-pointer" title="{{ color.name }}">
@@ -146,16 +146,16 @@ Swap strategy (Sprint 6, htmx-interaction):
                 not rendered in edit mode.
                 {% endcomment %}
                 <div>
-                    <span class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ form.repeat_days.label }}</span>
+                    <span class="block text-sm font-medium text-slate-700 dark:text-neutral-300">{{ form.repeat_days.label }}</span>
                     <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
                         {% for choice in form.repeat_days %}
-                            <label class="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-700 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-600 dark:text-slate-200 dark:has-[:checked]:bg-indigo-950/40">
+                            <label class="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-700 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-600 dark:text-neutral-200 dark:has-[:checked]:bg-indigo-500/10">
                                 {{ choice.tag }}
                                 <span>{{ choice.choice_label|slice:':3' }}</span>
                             </label>
                         {% endfor %}
                     </div>
-                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.repeat_days.help_text }}</p>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-neutral-400">{{ form.repeat_days.help_text }}</p>
                     {% for error in form.repeat_days.errors %}
                         <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
                     {% endfor %}
@@ -167,7 +167,7 @@ Swap strategy (Sprint 6, htmx-interaction):
                     {% include 'partials/buttons/primary.html' with label='Save' %}
                     {% if form.instance.pk %}
                         {% url 'planner:block-cancel' form.instance.pk as cancel_url %}
-                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cancel_url hx_target='closest td' hx_swap='outerHTML' %}
+                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cancel_url hx_target='closest td' hx_swap='outerHTML' data_block_cancel=True %}
                     {% else %}
                         {% comment %}
                         DTL has no string-concatenation operator, so this
@@ -200,7 +200,7 @@ Swap strategy (Sprint 6, htmx-interaction):
                         a behavior change.
                         {% endcomment %}
                         {% url 'planner:cell-cancel' as cell_cancel_base %}
-                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' %}
+                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' data_block_cancel=True %}
                     {% endif %}
                 </div>
 
@@ -214,12 +214,12 @@ Swap strategy (Sprint 6, htmx-interaction):
                         <button
                             type="submit" name="action" value="shrink"
                             aria-label="Shrink by one slot"
-                            class="rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                            class="rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]"
                         >&minus;</button>
                         <button
                             type="submit" name="action" value="extend"
                             aria-label="Extend by one slot"
-                            class="rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                            class="rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]"
                         >+</button>
                     </div>
                 {% endif %}

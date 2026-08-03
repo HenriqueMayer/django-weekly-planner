@@ -1,7 +1,7 @@
 [project]
 name = "django-weekly-planner"
 version = "0.1.0"
-description = "Add your description here"
+description = "A time-blocking weekly planner built with Django — click any cell, type a label, pick a color, and drag to resize."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

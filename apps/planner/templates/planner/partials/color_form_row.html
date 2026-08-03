@@ -88,7 +88,7 @@ own documented reasoning exactly):
         every future `#palette-panel` swap without re-binding anything.
         {% endcomment %}
         <div class="flex flex-col">
-            <label for="{{ form.hex_code.id_for_label }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Hex code</label>
+            <label for="{{ form.hex_code.id_for_label }}" class="block text-sm font-medium text-slate-700 dark:text-neutral-300">Hex code</label>
             <div class="mt-1 flex items-center gap-2">
                 <input
                     type="color"
@@ -105,7 +105,7 @@ own documented reasoning exactly):
                     data-hex-sync="{{ form.hex_code.id_for_label }}"
                     maxlength="7"
                     placeholder="#RRGGBB"
-                    class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-indigo-500 focus:ring-indigo-500"
+                    class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#313335] px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:border-indigo-500 focus:ring-indigo-500"
                 >
             </div>
             {% for error in form.hex_code.errors %}
