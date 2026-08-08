@@ -17,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.planner.models import BlockColor, PlannerSettings, TimeBlock
+from apps.planner.models import ActivityEvent, BlockColor, PlannerSettings, TimeBlock
 
 User = get_user_model()
 
@@ -51,6 +51,8 @@ class AuthProtectionTests(TestCase):
         ('planner:block-delete', 'post', {'pk': 999999}),
         ('planner:block-resize', 'post', {'pk': 999999}),
         ('planner:block-cancel', 'get', {'pk': 999999}),
+        ('planner:card-detail', 'get', {'pk': 999999}),
+        ('planner:card-detail-update', 'post', {'pk': 999999}),
         ('planner:cell-cancel', 'get', {}),
         ('planner:palette', 'get', {}),
         ('planner:color-create', 'get', {}),
@@ -577,6 +579,69 @@ class WeekNavigationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         block = TimeBlock.objects.get(user=self.user, label='Planned later')
         self.assertEqual(block.scheduled_date, date(2026, 8, 12))
+
+
+class CardDetailViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(self.user)
+        self.block = TimeBlock.objects.create(
+            user=self.user,
+            label='Deep work',
+            scheduled_date=date(2026, 8, 3),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+    def test_detail_get_is_scoped_and_shows_activity_empty_state(self):
+        response = self.client.get(
+            reverse('planner:card-detail', args=[self.block.pk]),
+            {'week': '2026-08-03'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Card details')
+        self.assertContains(response, 'No activity yet.')
+
+    def test_detail_update_persists_properties_and_records_activity(self):
+        response = self.client.post(
+            reverse('planner:card-detail-update', args=[self.block.pk]),
+            {
+                'week': '2026-08-03',
+                'label': 'Deep work updated',
+                'description': 'Protect this focus block.',
+                'status': 'completed',
+                'due_at': '2026-08-03T17:00',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.block.refresh_from_db()
+        self.assertEqual(self.block.status, TimeBlock.STATUS_COMPLETED)
+        self.assertEqual(self.block.description, 'Protect this focus block.')
+        self.assertEqual(ActivityEvent.objects.filter(time_block=self.block).count(), 1)
+        self.assertEqual(
+            ActivityEvent.objects.get(time_block=self.block).event_type,
+            'card_updated',
+        )
+        self.assertIn('hx-swap-oob="true"', response.content.decode())
+
+    def test_invalid_status_is_rejected_without_activity(self):
+        response = self.client.post(
+            reverse('planner:card-detail-update', args=[self.block.pk]),
+            {
+                'week': '2026-08-03',
+                'label': 'Deep work',
+                'description': '',
+                'status': 'not-a-status',
+                'due_at': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['HX-Retarget'], '#card-panel')
+        self.assertEqual(ActivityEvent.objects.filter(time_block=self.block).count(), 0)
 
 
 class MixedOperationSequenceTests(TestCase):

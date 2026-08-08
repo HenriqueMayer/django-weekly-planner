@@ -36,6 +36,7 @@ from datetime import timedelta
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
@@ -51,7 +52,7 @@ from apps.planner.dates import (
     week_end,
 )
 from apps.planner.export import build_svg_export, render_week_markdown
-from apps.planner.forms import BlockColorForm, PlannerSettingsForm, TimeBlockForm
+from apps.planner.forms import BlockColorForm, CardDetailForm, PlannerSettingsForm, TimeBlockForm
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
     BlockColor,
@@ -60,6 +61,7 @@ from apps.planner.models import (
     minutes_since_midnight,
     time_from_minutes,
 )
+from apps.planner.services import record_activity
 
 
 def _format_validation_error(exc):
@@ -127,6 +129,110 @@ def _render_grid_response(request, toast_message='', toast_level=''):
         'toast_level': toast_level,
     }
     return render(request, 'planner/partials/grid_table.html', context)
+
+
+def _card_detail_context(request, block, form=None):
+    week_start = selected_week(request)
+    return {
+        'block': block,
+        'detail_form': form or CardDetailForm(instance=block),
+        'activities': block.activity_events.select_related('actor')[:20],
+        'selected_week_start': week_start,
+        'selected_week_value': week_start.isoformat(),
+    }
+
+
+def _render_card_detail_response(request, block, form=None):
+    """Return the detail panel plus an OOB refresh of the shared grid."""
+    detail_html = render_to_string(
+        'planner/partials/card_detail_panel.html',
+        _card_detail_context(request, block, form),
+        request=request,
+    )
+    settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
+    week_start = selected_week(request)
+    grid_html = render_to_string(
+        'planner/partials/grid_table.html',
+        {
+            'week_grid': build_week_grid(
+                settings_obj,
+                _week_blocks(request.user, week_start),
+                week_start,
+            ),
+            'grid_oob': True,
+            'toast_message': '',
+            'toast_level': '',
+            **_navigation_context(request, week_start),
+        },
+        request=request,
+    )
+    return HttpResponse(detail_html + grid_html)
+
+
+class CardDetailView(LoginRequiredMixin, View):
+    """Open one ownership-scoped card in the in-page detail panel."""
+
+    def get(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        return render(
+            request,
+            'planner/partials/card_detail_panel.html',
+            _card_detail_context(request, block),
+        )
+
+
+class CardDetailUpdateView(LoginRequiredMixin, UpdateView):
+    """Update card properties and record a single activity transaction."""
+
+    model = TimeBlock
+    form_class = CardDetailForm
+    template_name = 'planner/partials/card_detail_panel.html'
+
+    def get_queryset(self):
+        return TimeBlock.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_card_detail_context(self.request, self.object, context.get('form')))
+        return context
+
+    def form_invalid(self, form):
+        response = super().form_invalid(form)
+        response['HX-Retarget'] = '#card-panel'
+        response['HX-Reswap'] = 'outerHTML'
+        return response
+
+    @transaction.atomic
+    def form_valid(self, form):
+        previous = TimeBlock.objects.get(pk=self.object.pk)
+        before = {
+            'label': previous.label,
+            'description': previous.description,
+            'status': previous.status,
+            'due_at': previous.due_at.isoformat() if previous.due_at else None,
+        }
+        self.object = form.save()
+        changed = {
+            field: (
+                getattr(self.object, field).isoformat()
+                if field == 'due_at' and getattr(self.object, field)
+                else getattr(self.object, field)
+            )
+            for field in before
+            if before[field] != (
+                getattr(self.object, field).isoformat()
+                if field == 'due_at' and getattr(self.object, field)
+                else getattr(self.object, field)
+            )
+        }
+        if changed:
+            record_activity(
+                self.object,
+                self.request.user,
+                'card_updated',
+                {'changes': changed},
+            )
+        return _render_card_detail_response(self.request, self.object)
 
 
 def _render_palette_response(request):
@@ -279,6 +385,12 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
         the primary block has already saved successfully by that point.
         """
         self.object = form.save()
+        record_activity(
+            self.object,
+            self.request.user,
+            'card_created',
+            {'label': self.object.label},
+        )
 
         day_labels_by_value = dict(TimeBlock.DAY_CHOICES)
         skipped_day_labels = []
@@ -412,7 +524,15 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
         return _render_grid_response(self.request)
 
     def form_valid(self, form):
+        changed_fields = list(form.changed_data)
         self.object = form.save()
+        if changed_fields:
+            record_activity(
+                self.object,
+                self.request.user,
+                'card_schedule_updated',
+                {'fields': changed_fields},
+            )
         return _render_grid_response(self.request)
 
     def form_invalid(self, form):

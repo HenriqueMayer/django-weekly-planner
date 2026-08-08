@@ -158,6 +158,22 @@ class TimeBlock(TimestampedModel):
         (5, 'Saturday'),
         (6, 'Sunday'),
     )
+    STATUS_PLANNED = 'planned'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_PARTIAL = 'partial'
+    STATUS_COMPLETED = 'completed'
+    STATUS_INCOMPLETE = 'incomplete'
+    STATUS_ABANDONED = 'abandoned'
+    STATUS_TRANSFERRED = 'transferred'
+    STATUS_CHOICES = (
+        (STATUS_PLANNED, 'Planned'),
+        (STATUS_IN_PROGRESS, 'In progress'),
+        (STATUS_PARTIAL, 'Partial'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_INCOMPLETE, 'Incomplete'),
+        (STATUS_ABANDONED, 'Abandoned'),
+        (STATUS_TRANSFERRED, 'Transferred'),
+    )
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -165,6 +181,9 @@ class TimeBlock(TimestampedModel):
         related_name='time_blocks',
     )
     label = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANNED)
+    due_at = models.DateTimeField(null=True, blank=True)
     # Nullable during the transition so old programmatic callers can still
     # save a day-only block; planner forms always populate this field.
     scheduled_date = models.DateField(null=True, blank=True)
@@ -265,3 +284,26 @@ class TimeBlock(TimestampedModel):
             self.day_of_week = self.scheduled_date.weekday()
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class ActivityEvent(TimestampedModel):
+    """Immutable user-visible history for a planner card."""
+
+    time_block = models.ForeignKey(
+        TimeBlock,
+        on_delete=models.CASCADE,
+        related_name='activity_events',
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='planner_activity_events',
+    )
+    event_type = models.CharField(max_length=50)
+    payload = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ('-created_at', '-pk')
+        indexes = [
+            models.Index(fields=['time_block', '-created_at']),
+        ]

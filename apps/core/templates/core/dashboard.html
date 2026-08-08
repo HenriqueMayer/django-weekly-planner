@@ -256,6 +256,7 @@
     <div class="mt-8">
         {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
     </div>
+    <aside id="card-panel" class="hidden" aria-hidden="true"></aside>
 {% endblock %}
 
 {% block extra_body %}
@@ -287,4 +288,5 @@
     <script src="{% static 'js/export.js' %}"></script>
     <script src="{% static 'js/block-form-close.js' %}"></script>
     <script src="{% static 'js/week-navigation.js' %}"></script>
+    <script src="{% static 'js/card-panel.js' %}"></script>
 {% endblock %}

@@ -19,6 +19,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 9 — Docker, Documentation & Open-Source Template Release: complete (except 9.3.2, deliberately withheld).**
 **Sprint 10 — Grid Export (Markdown, SVG, PNG, PDF): complete.** *(Post-launch addition, not in the PRD's original §13 plan — see below.)*
 **Phase A — Week Foundation: complete.** *(Adds date-aware week navigation and the calendar popover; recurrence is reserved for the next domain phase.)*
+**Phase B — Card Details: complete.** *(Adds status, description, due date, activity, and the HTMX detail panel.)*
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -47,7 +48,7 @@ tagging and publishing it (9.3.2), which is withheld this session by explicit in
 of the original nine-sprint plan, users can now also export their week as Markdown, SVG, a
 client-side-rendered PNG, or a printed/PDF page (`static/js/export.js` + a new "Export" toolbar
 dropdown) — a post-launch feature added entirely without any new runtime dependency, per explicit
-user direction. The automated suite now stands at 101 tests. See §13 in the PRD for the full
+user direction. The automated suite now stands at 111 tests. See §13 in the PRD for the full
 sprint plan and checklist.
 
 ---
@@ -92,11 +93,13 @@ django-weekly-planner/
 │   │   ├── tests.py           # Sprint 8: 5 tests (signup, login success/failure, logout)
 │   │   └── templates/accounts/  # login.html, signup.html
 │   └── planner/               # domain models/settings — Sprint 4; grid — Sprint 5; CRUD — Sprint 6
-│       ├── models.py           # BlockColor, PlannerSettings, TimeBlock (all TimestampedModel);
+│       ├── models.py           # BlockColor, PlannerSettings, TimeBlock, ActivityEvent;
 │       │                       # also minutes_since_midnight()/round_half_up()/time_from_minutes()/
 │       │                       # format_time_label() (Sprint 10: promoted here, public, from
 │       │                       # what used to be grid.py's private _format_time_label())
 │       ├── grid.py             # build_week_grid() — pure-Python matrix builder (Sprint 5)
+│       ├── dates.py            # ISO-week normalization and calendar helpers (Phase A)
+│       ├── services.py         # transactional activity recording (Phase B)
 │       ├── export.py           # Sprint 10 (new feature): render_week_markdown(),
 │       │                       # build_svg_export() + SvgRect/SvgText/SvgExport dataclasses
 │       ├── signals.py          # post_save on User -> auto-create PlannerSettings

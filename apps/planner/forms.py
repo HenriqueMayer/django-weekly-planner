@@ -6,7 +6,12 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from apps.planner.dates import normalize_week_start
-from apps.planner.models import BlockColor, PlannerSettings, TimeBlock, minutes_since_midnight
+from apps.planner.models import (
+    BlockColor,
+    PlannerSettings,
+    TimeBlock,
+    minutes_since_midnight,
+)
 
 # Shared input styling from PRD 9.2, mirrored from
 # `apps.accounts.forms.INPUT_CLASSES` so every widget in the project uses
@@ -105,6 +110,28 @@ class TimeBlockForm(forms.ModelForm):
         if day is not None:
             self.instance.scheduled_date = self.week_start + timedelta(days=int(day))
         return cleaned_data
+
+
+class CardDetailForm(forms.ModelForm):
+    """Edit card properties that do not change its grid geometry."""
+
+    due_at = forms.DateTimeField(
+        required=False,
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+    )
+
+    class Meta:
+        model = TimeBlock
+        fields = ['label', 'description', 'status', 'due_at']
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': INPUT_CLASSES})
 
 
 class BlockColorForm(forms.ModelForm):
