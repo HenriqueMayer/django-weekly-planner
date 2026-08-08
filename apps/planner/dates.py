@@ -45,31 +45,25 @@ def week_label(week_start):
 
 
 def month_calendar(month_start, selected_week):
-    """Build a small Monday-first calendar matrix for the popover."""
-    first_day = month_start.replace(day=1)
-    first_cell = first_day - timedelta(days=first_day.weekday())
-    last_day = month_start.replace(day=calendar.monthrange(month_start.year, month_start.month)[1])
-    last_cell = last_day + timedelta(days=6 - last_day.weekday())
-
+    """Build a compact Sunday-first month matrix for the date picker."""
+    month_start = month_start.replace(day=1)
     rows = []
-    cursor = first_cell
-    while cursor <= last_cell:
+    for week in calendar.Calendar(firstweekday=calendar.SUNDAY).monthdatescalendar(
+        month_start.year,
+        month_start.month,
+    ):
         days = []
-        for offset in range(7):
-            current = cursor + timedelta(days=offset)
+        for current in week:
             days.append({
                 'date': current,
                 'day': current.day,
                 'in_month': current.month == month_start.month,
+                'is_weekend': current.weekday() >= 5,
                 'is_today': current == date.today(),
-                'is_selected': normalize_week_start(current) == selected_week,
+                'is_selected': current == selected_week,
                 'week_start': normalize_week_start(current),
             })
-        rows.append({
-            'week_number': cursor.isocalendar().week,
-            'days': days,
-        })
-        cursor += timedelta(days=7)
+        rows.append({'days': days})
     return rows
 
 
@@ -100,6 +94,8 @@ def navigation_context(week_start, month_value=None):
         'next_week': week_start + timedelta(days=7),
         'today_week_start': current_week,
         'calendar_month': month_start,
+        'calendar_today': date.today(),
+        'calendar_day_headers': ('S', 'M', 'T', 'W', 'T', 'F', 'S'),
         'calendar_rows': month_calendar(month_start, week_start),
         'previous_month': shift_month(month_start, -1),
         'next_month': shift_month(month_start, 1),

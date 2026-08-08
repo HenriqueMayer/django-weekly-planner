@@ -35,7 +35,7 @@ This template only provides the empty class attribute hook.
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=3">
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -59,6 +59,7 @@ This template only provides the empty class attribute hook.
     <!-- htmx-interaction: theme toggle click handler + localStorage
          persistence (PRD 1.4.4). -->
     <script src="{% static 'js/theme.js' %}"></script>
+    <script src="{% static 'js/ui-close.js' %}"></script>
 
     {% block extra_body %}{% endblock %}
 </body>

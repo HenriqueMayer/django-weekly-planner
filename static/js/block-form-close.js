@@ -34,6 +34,12 @@
     'use strict';
 
     document.addEventListener('click', function (evt) {
+        var directCancel = evt.target.closest('[data-block-cancel]');
+        if (directCancel && !directCancel.hasAttribute('hx-get')) {
+            var quickForm = directCancel.closest('#block-form');
+            if (quickForm) quickForm.remove();
+            return;
+        }
         var form = document.getElementById('block-form');
         if (!form || form.contains(evt.target)) {
             return;
@@ -42,5 +48,14 @@
         if (cancel) {
             cancel.click();
         }
+    });
+
+    document.addEventListener('keydown', function (evt) {
+        if (evt.key !== 'Escape') return;
+        var form = document.getElementById('block-form');
+        if (!form) return;
+        var cancel = form.querySelector('[data-block-cancel]');
+        if (cancel) cancel.click();
+        evt.preventDefault();
     });
 })();

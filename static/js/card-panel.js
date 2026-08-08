@@ -12,13 +12,15 @@
         if (!event.detail.target || event.detail.target.id !== 'card-panel') return;
         var close = event.detail.target.querySelector('[data-card-close]');
         if (close) close.focus();
+        document.body.classList.add('overflow-hidden');
     });
 
     document.addEventListener('click', function (event) {
-        var close = event.target.closest('[data-card-close]');
+        var close = event.target.closest('[data-card-close], [data-card-backdrop]');
         if (!close) return;
         var panel = close.closest('[data-card-panel]');
         if (panel) panel.remove();
+        document.body.classList.remove('overflow-hidden');
         if (opener && document.contains(opener)) opener.focus();
         opener = null;
     });
@@ -29,5 +31,6 @@
         if (!panel) return;
         var close = panel.querySelector('[data-card-close]');
         if (close) close.click();
+        document.body.classList.remove('overflow-hidden');
     });
 })();

@@ -1,4 +1,6 @@
-<aside id="card-panel" class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-lg ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-[#323232]" role="dialog" aria-modal="true" aria-labelledby="card-panel-title" data-card-panel>
+<div id="card-panel" class="fixed inset-0 z-50" data-card-panel>
+    <button type="button" data-card-backdrop aria-label="Close card details" class="absolute inset-0 h-full w-full bg-slate-950/40 backdrop-blur-[1px]"></button>
+    <aside class="absolute inset-x-4 top-4 bottom-4 mx-auto flex max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-[#323232] sm:inset-x-8 sm:top-8 sm:bottom-8" role="dialog" aria-modal="true" aria-labelledby="card-panel-title">
     <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-700">
         <div>
             <p class="text-xs font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Card details</p>
@@ -206,4 +208,5 @@
             </ol>
         </section>
     </div>
-</aside>
+    </aside>
+</div>

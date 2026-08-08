@@ -748,7 +748,15 @@ class GridView(LoginRequiredMixin, TemplateView):
         blocks = _week_blocks(self.request.user, week_start)
         context['week_grid'] = build_week_grid(settings_obj, blocks, week_start)
         context.update(_navigation_context(self.request, week_start))
+        context['navigation_htmx'] = True
         return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get('HX-Request') == 'true':
+            if self.request.headers.get('HX-Target') == 'calendar-picker':
+                return render(self.request, 'planner/partials/calendar_picker.html', context)
+            return render(self.request, 'planner/partials/planner_surface.html', context)
+        return super().render_to_response(context, **response_kwargs)
 
 
 class KanbanView(LoginRequiredMixin, TemplateView):
@@ -851,7 +859,7 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
 
     model = TimeBlock
     form_class = TimeBlockForm
-    template_name = 'planner/partials/block_form.html'
+    template_name = 'planner/partials/quick_block_form.html'
 
     def get_initial(self):
         initial = super().get_initial()

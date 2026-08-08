@@ -47,3 +47,36 @@ class DashboardViewTests(TestCase):
         self.assertIn('settings_form', response.context)
         self.assertIn('colors', response.context)
         self.assertIn('id="grid-table"', response.content.decode())
+        self.assertContains(response, 'dark:bg-indigo-400')
+
+    def test_htmx_week_navigation_returns_only_the_planner_surface(self):
+        user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse('core:dashboard'),
+            {'week': '2026-08-10'},
+            HTTP_HX_REQUEST='true',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'planner/partials/planner_surface.html')
+        self.assertIn('id="planner-surface"', response.content.decode())
+        self.assertNotIn('<html', response.content.decode())
+
+    def test_htmx_month_navigation_returns_only_the_calendar_picker(self):
+        user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse('core:dashboard'),
+            {'week': '2026-08-03', 'month': '2026-09'},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='calendar-picker',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'planner/partials/calendar_picker.html')
+        content = response.content.decode()
+        self.assertIn('id="calendar-picker"', content)
+        self.assertNotIn('id="planner-surface"', content)

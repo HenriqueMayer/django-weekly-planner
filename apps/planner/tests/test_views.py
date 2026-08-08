@@ -584,6 +584,26 @@ class WeekNavigationTests(TestCase):
 
         self.assertNotIn('Other week', response.content.decode())
 
+    def test_grid_card_is_a_button_that_opens_the_detail_panel(self):
+        block = TimeBlock.objects.create(
+            user=self.user,
+            label='Clickable work',
+            scheduled_date=date(2026, 8, 3),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:grid'), {'week': '2026-08-03'})
+        content = response.content.decode()
+
+        self.assertIn(
+            f'hx-get="{reverse("planner:card-detail", args=[block.pk])}?week=2026-08-03"',
+            content,
+        )
+        self.assertIn('hx-target="#card-panel"', content)
+        self.assertIn('<button', content)
+
     def test_create_preserves_requested_week(self):
         response = self.client.post(
             reverse('planner:block-create') + '?week=2026-08-10',

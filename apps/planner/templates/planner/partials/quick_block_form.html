@@ -1,0 +1,22 @@
+<td id="block-form" class="relative" rowspan="1">
+    <div class="absolute left-0 top-0 z-30 w-64 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-slate-700">
+        <form method="post" action="{% url 'planner:block-create' %}" hx-post="{% url 'planner:block-create' %}" hx-target="#grid-table" hx-swap="outerHTML" class="space-y-2">
+            {% csrf_token %}
+            <input type="hidden" name="week" value="{{ selected_week_value }}">
+            <input type="hidden" name="day_of_week" value="{{ form.day_of_week.value }}">
+            <input type="hidden" name="start_time" value="{{ form.start_time.value }}">
+            <input type="hidden" name="end_time" value="{{ form.end_time.value }}">
+            {% for error in form.non_field_errors %}<p class="text-xs text-rose-600 dark:text-rose-300">{{ error }}</p>{% endfor %}
+            {% for field in form.hidden_fields %}{% for error in field.errors %}<p class="text-xs text-rose-600 dark:text-rose-300">{{ error }}</p>{% endfor %}{% endfor %}
+            {% for error in form.start_time.errors %}<p class="text-xs text-rose-600 dark:text-rose-300">{{ error }}</p>{% endfor %}
+            {% for error in form.end_time.errors %}<p class="text-xs text-rose-600 dark:text-rose-300">{{ error }}</p>{% endfor %}
+            <label for="quick-card-label" class="sr-only">Card name</label>
+            <input id="quick-card-label" type="text" name="label" value="{{ form.label.value|default:'' }}" maxlength="200" required autofocus placeholder="Card name" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-[#292b2d] dark:text-neutral-100">
+            {% for error in form.label.errors %}<p class="text-xs text-rose-600 dark:text-rose-300">{{ error }}</p>{% endfor %}
+            <div class="flex justify-end gap-2">
+                <button type="button" data-block-cancel class="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-[#3a3a3a]">Cancel</button>
+                <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500">Add card</button>
+            </div>
+        </form>
+    </div>
+</td>

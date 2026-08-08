@@ -7,10 +7,9 @@
 
         <div class="flex items-center gap-3">
             {% if request.user.is_authenticated %}
-                {% url 'core:dashboard' as dashboard_url %}
-                {% include 'partials/buttons/primary.html' with href=dashboard_url label='Dashboard' %}
-                <a href="{% url 'planner:kanban' %}" class="text-sm font-medium text-slate-600 dark:text-neutral-400 hover:text-indigo-600 dark:hover:text-indigo-400">Kanban</a>
-                <a href="{% url 'planner:notifications' %}" class="text-sm font-medium text-slate-600 dark:text-neutral-400 hover:text-indigo-600 dark:hover:text-indigo-400">Notifications</a>
+                <a href="{% url 'core:dashboard' %}" class="rounded-lg px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-600 text-white shadow-sm dark:bg-indigo-400 dark:text-slate-950{% else %}text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-neutral-400 dark:hover:bg-[#3a3a3a] dark:hover:text-indigo-300{% endif %}">Dashboard</a>
+                <a href="{% url 'planner:kanban' %}" class="rounded-lg px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name == 'kanban' %}bg-indigo-600 text-white shadow-sm dark:bg-indigo-400 dark:text-slate-950{% else %}text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-neutral-400 dark:hover:bg-[#3a3a3a] dark:hover:text-indigo-300{% endif %}">Kanban</a>
+                <a href="{% url 'planner:notifications' %}" class="rounded-lg px-3 py-2 text-sm font-medium {% if request.resolver_match.url_name == 'notifications' %}bg-indigo-600 text-white shadow-sm dark:bg-indigo-400 dark:text-slate-950{% else %}text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-neutral-400 dark:hover:bg-[#3a3a3a] dark:hover:text-indigo-300{% endif %}">Notifications</a>
                 <form method="post" action="{% url 'accounts:logout' %}">
                     {% csrf_token %}
                     {% include 'partials/buttons/secondary.html' with label='Logout' button_type='submit' %}

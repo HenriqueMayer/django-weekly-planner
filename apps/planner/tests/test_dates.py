@@ -21,8 +21,17 @@ class PlannerDateTests(SimpleTestCase):
             'Week 32 - 2026 · 03–09 Aug 2026',
         )
 
-    def test_calendar_contains_week_numbers_and_selected_week(self):
+    def test_calendar_marks_only_the_selected_week_start(self):
         rows = month_calendar(date(2026, 8, 1), date(2026, 8, 3))
         selected_days = [day for row in rows for day in row['days'] if day['is_selected']]
-        self.assertEqual(len(selected_days), 7)
-        self.assertIn(32, [row['week_number'] for row in rows])
+        self.assertEqual([day['date'] for day in selected_days], [date(2026, 8, 3)])
+
+    def test_calendar_uses_natural_month_rows_and_starts_on_sunday(self):
+        rows = month_calendar(date(2026, 2, 1), date(2026, 2, 2))
+
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(
+            [day['date'].weekday() for day in rows[0]['days']],
+            [6, 0, 1, 2, 3, 4, 5],
+        )
+        self.assertTrue(rows[0]['days'][0]['is_weekend'])
