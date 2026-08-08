@@ -9,6 +9,7 @@
 - Added HTMX comment creation with server-side validation.
 - Added ownership-scoped comment access through the card owner.
 - Added `comment_added` activity events.
+- Added author-only comment editing and deletion.
 - Registered comments in Django admin.
 
 ## Rules
@@ -20,12 +21,11 @@
 
 ## Deliberate scope boundary
 
-Comment editing, deletion, mentions, and threaded replies are reserved for a
-later collaboration pass.
+Mentions and threaded replies are reserved for a later collaboration pass.
 
 ## Verification
 
-- Full Django test suite: 128 tests.
+- Full Django test suite: 130 tests.
 - `python manage.py check`.
 - `python manage.py makemigrations --check --dry-run`.
 - `ruff check apps static`.

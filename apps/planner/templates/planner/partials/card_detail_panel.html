@@ -115,6 +115,19 @@
                     <li class="rounded-lg bg-slate-50 p-3 dark:bg-[#292b2d]">
                         <p class="whitespace-pre-wrap text-sm text-slate-700 dark:text-neutral-200">{{ comment.body }}</p>
                         <p class="mt-1 text-xs text-slate-500 dark:text-neutral-400">{{ comment.author.username }} · {{ comment.created_at|date:'j M Y, H:i' }}</p>
+                        {% if comment.author == request.user %}
+                            <div class="mt-2 flex gap-2 text-xs">
+                                <details>
+                                    <summary class="cursor-pointer text-indigo-600 dark:text-indigo-300">Edit</summary>
+                                    <form class="mt-1 flex gap-1" method="post" action="{% url 'planner:comment-update' block.pk comment.pk %}" hx-post="{% url 'planner:comment-update' block.pk comment.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                                        {% csrf_token %}<textarea name="body" maxlength="2000" required rows="2" class="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100">{{ comment.body }}</textarea><button type="submit" class="rounded bg-indigo-600 px-2 py-1 font-medium text-white">Save</button>
+                                    </form>
+                                </details>
+                                <form method="post" action="{% url 'planner:comment-delete' block.pk comment.pk %}" hx-post="{% url 'planner:comment-delete' block.pk comment.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                                    {% csrf_token %}<button type="submit" class="text-rose-600 hover:underline dark:text-rose-300">Delete</button>
+                                </form>
+                            </div>
+                        {% endif %}
                     </li>
                 {% empty %}
                     <li class="text-sm text-slate-500 dark:text-neutral-400">No comments yet.</li>

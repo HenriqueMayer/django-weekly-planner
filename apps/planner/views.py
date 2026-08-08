@@ -64,6 +64,7 @@ from apps.planner.forms import (
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
     BlockColor,
+    CardComment,
     ChecklistItem,
     PlannerSettings,
     TimeBlock,
@@ -237,6 +238,50 @@ class CommentAddView(LoginRequiredMixin, View):
             'comment_added',
             {'comment_id': comment.pk},
         )
+        return _render_card_detail_response(request, block)
+
+
+class CommentUpdateView(LoginRequiredMixin, View):
+    """Edit only the authenticated user's comment."""
+
+    def post(self, request, *args, **kwargs):
+        comment = get_object_or_404(
+            CardComment.objects.select_related('time_block'),
+            pk=kwargs['comment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+            author=request.user,
+        )
+        form = CardCommentForm(request.POST, instance=comment)
+        if not form.is_valid():
+            return _render_card_detail_response(request, comment.time_block)
+        form.save()
+        record_activity(
+            comment.time_block,
+            request.user,
+            'comment_updated',
+            {'comment_id': comment.pk},
+        )
+        return _render_card_detail_response(request, comment.time_block)
+
+
+class CommentDeleteView(LoginRequiredMixin, View):
+    """Delete only the authenticated user's comment."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        comment = get_object_or_404(
+            CardComment.objects.select_related('time_block'),
+            pk=kwargs['comment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+            author=request.user,
+        )
+        block = comment.time_block
+        comment_id = comment.pk
+        comment.delete()
+        record_activity(block, request.user, 'comment_deleted', {'comment_id': comment_id})
         return _render_card_detail_response(request, block)
 
 
