@@ -1,8 +1,11 @@
 """Forms for the planner app (PRD FR-06, FR-07, FR-08, FR-13, §8.2, Sprint 6)."""
 
+from datetime import timedelta
+
 from django import forms
 from django.core.exceptions import ValidationError
 
+from apps.planner.dates import normalize_week_start
 from apps.planner.models import BlockColor, PlannerSettings, TimeBlock, minutes_since_midnight
 
 # Shared input styling from PRD 9.2, mirrored from
@@ -84,8 +87,9 @@ class TimeBlockForm(forms.ModelForm):
             'color': forms.RadioSelect,
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, week_start=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.week_start = normalize_week_start(week_start)
         for field_name in ('label', 'day_of_week', 'start_time', 'end_time'):
             self.fields[field_name].widget.attrs.update({'class': INPUT_CLASSES})
         # `color` intentionally keeps its bare `RadioSelect` widget --
@@ -94,6 +98,13 @@ class TimeBlockForm(forms.ModelForm):
         if user is not None:
             self.instance.user = user
             self.fields['color'].queryset = BlockColor.objects.filter(user=user)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        day = cleaned_data.get('day_of_week')
+        if day is not None:
+            self.instance.scheduled_date = self.week_start + timedelta(days=int(day))
+        return cleaned_data
 
 
 class BlockColorForm(forms.ModelForm):

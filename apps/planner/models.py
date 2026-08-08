@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import Q
 
 from apps.core.models import TimestampedModel
 
@@ -164,6 +165,9 @@ class TimeBlock(TimestampedModel):
         related_name='time_blocks',
     )
     label = models.CharField(max_length=200)
+    # Nullable during the transition so old programmatic callers can still
+    # save a day-only block; planner forms always populate this field.
+    scheduled_date = models.DateField(null=True, blank=True)
     day_of_week = models.IntegerField(choices=DAY_CHOICES)
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -176,10 +180,15 @@ class TimeBlock(TimestampedModel):
     )
 
     class Meta:
-        ordering = ('day_of_week', 'start_time')
+        ordering = ('scheduled_date', 'start_time')
+        indexes = [
+            models.Index(fields=['user', 'scheduled_date']),
+            models.Index(fields=['user', 'day_of_week']),
+        ]
 
     def __str__(self):
-        return f'{self.label} ({self.get_day_of_week_display()} {self.start_time}-{self.end_time})'
+        day = self.scheduled_date or self.get_day_of_week_display()
+        return f'{self.label} ({day} {self.start_time}-{self.end_time})'
 
     def get_duration_minutes(self):
         """Return the block's duration in minutes.
@@ -212,6 +221,9 @@ class TimeBlock(TimestampedModel):
         if self.get_duration_minutes() <= 0:
             raise ValidationError('End time must be after start time.')
 
+        if self.scheduled_date is not None:
+            self.day_of_week = self.scheduled_date.weekday()
+
         for other in self._same_day_queryset():
             if self._overlaps(other):
                 raise ValidationError(
@@ -221,10 +233,15 @@ class TimeBlock(TimestampedModel):
 
     def _same_day_queryset(self):
         """Return the user's other blocks on the same day (excludes self)."""
-        return TimeBlock.objects.filter(
-            user=self.user,
-            day_of_week=self.day_of_week,
-        ).exclude(pk=self.pk)
+        queryset = TimeBlock.objects.filter(user=self.user)
+        if self.scheduled_date is not None:
+            queryset = queryset.filter(
+                Q(scheduled_date=self.scheduled_date)
+                | Q(scheduled_date__isnull=True, day_of_week=self.day_of_week),
+            )
+        else:
+            queryset = queryset.filter(day_of_week=self.day_of_week, scheduled_date__isnull=True)
+        return queryset.exclude(pk=self.pk)
 
     def _overlaps(self, other):
         """Return True if this block's time range overlaps `other`'s.
@@ -244,5 +261,7 @@ class TimeBlock(TimestampedModel):
         bulk `QuerySet.update()` calls, which bypass `save()`/`clean()`
         entirely -- a standard Django limitation, not specific to this
         model."""
+        if self.scheduled_date is not None:
+            self.day_of_week = self.scheduled_date.weekday()
         self.full_clean()
         super().save(*args, **kwargs)

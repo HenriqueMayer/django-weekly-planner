@@ -11,8 +11,10 @@ from apps.planner.models import BlockColor, PlannerSettings, TimeBlock
 
 @admin.register(TimeBlock)
 class TimeBlockAdmin(admin.ModelAdmin):
-    list_display = ('label', 'user', 'day_of_week', 'start_time', 'end_time', 'color')
-    list_filter = ('day_of_week', 'user')
+    list_display = (
+        'label', 'user', 'scheduled_date', 'day_of_week', 'start_time', 'end_time', 'color',
+    )
+    list_filter = ('scheduled_date', 'day_of_week', 'user')
 
 
 admin.site.register(BlockColor)

@@ -33,6 +33,7 @@ iterate, no logic-heavy DTL":
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from apps.planner.dates import normalize_week_start
 from apps.planner.models import TimeBlock, format_time_label
 
 # Tailwind's `slate-50`, matching the on-screen grid header background
@@ -62,7 +63,7 @@ ROW_HEIGHT = 28
 TEXT_PADDING_X = 6
 
 
-def render_week_markdown(blocks, time_format):
+def render_week_markdown(blocks, time_format, week_start=None):
     """Render one user's week as a Markdown document.
 
     Args:
@@ -81,11 +82,21 @@ def render_week_markdown(blocks, time_format):
         sorted by `start_time`, as `- <start>-<end> <label>` bullets, or
         `_No blocks._` when the day has none.
     """
+    week_start = normalize_week_start(week_start)
     blocks_by_day = defaultdict(list)
     for block in blocks:
-        blocks_by_day[block.day_of_week].append(block)
+        if block.scheduled_date is not None:
+            day = (block.scheduled_date - week_start).days
+            if 0 <= day <= 6:
+                blocks_by_day[day].append(block)
+        elif 0 <= block.day_of_week <= 6:
+            blocks_by_day[block.day_of_week].append(block)
 
-    lines = ['# My Week', '']
+    lines = [
+        '# My Week',
+        f'Week {week_start.isocalendar().week} - {week_start.isocalendar().year}',
+        '',
+    ]
     for day_value, day_name in TimeBlock.DAY_CHOICES:
         lines.append(f'## {day_name}')
         lines.append('')

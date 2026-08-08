@@ -234,6 +234,10 @@
         </div>
     </div>
 
+    <div class="mt-4">
+        {% include 'planner/partials/week_navigation.html' %}
+    </div>
+
     {% comment %}
     --- Weekly grid (PRD 5.2.1) ---
     Replaces the Sprint 3 placeholder empty-state card. Renders the same
@@ -282,4 +286,5 @@
     <script src="{% static 'js/color-sync.js' %}"></script>
     <script src="{% static 'js/export.js' %}"></script>
     <script src="{% static 'js/block-form-close.js' %}"></script>
+    <script src="{% static 'js/week-navigation.js' %}"></script>
 {% endblock %}

@@ -18,6 +18,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 8 — Automated Tests: complete.**
 **Sprint 9 — Docker, Documentation & Open-Source Template Release: complete (except 9.3.2, deliberately withheld).**
 **Sprint 10 — Grid Export (Markdown, SVG, PNG, PDF): complete.** *(Post-launch addition, not in the PRD's original §13 plan — see below.)*
+**Phase A — Week Foundation: complete.** *(Adds date-aware week navigation and the calendar popover; recurrence is reserved for the next domain phase.)*
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell

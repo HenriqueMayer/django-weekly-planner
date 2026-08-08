@@ -31,9 +31,12 @@ The actual toast markup and its `hx-swap-oob` wiring is a later
 variables are always present in context.
 """
 
+from datetime import timedelta
+
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
@@ -41,6 +44,12 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView, UpdateView
 
+from apps.planner.dates import (
+    navigation_context,
+    normalize_week_start,
+    parse_week_start,
+    week_end,
+)
 from apps.planner.export import build_svg_export, render_week_markdown
 from apps.planner.forms import BlockColorForm, PlannerSettingsForm, TimeBlockForm
 from apps.planner.grid import GridCell, build_week_grid
@@ -76,6 +85,29 @@ def _day_range_minutes(settings_obj):
     return range_start, range_end
 
 
+def selected_week(request):
+    return parse_week_start(request.POST.get('week') or request.GET.get('week'))
+
+
+def _week_blocks(user, week_start):
+    legacy_blocks = (
+        Q(scheduled_date__isnull=True)
+        if week_start == normalize_week_start()
+        else Q(pk__in=[])
+    )
+    return TimeBlock.objects.filter(
+        user=user,
+    ).filter(
+        Q(scheduled_date__gte=week_start, scheduled_date__lte=week_end(week_start))
+        | legacy_blocks,
+    ).select_related('color')
+
+
+def _navigation_context(request, week_start):
+    month_value = request.GET.get('month') or request.POST.get('month')
+    return navigation_context(week_start, month_value)
+
+
 def _render_grid_response(request, toast_message='', toast_level=''):
     """Re-render the entire grid table fragment for `request.user`.
 
@@ -85,10 +117,12 @@ def _render_grid_response(request, toast_message='', toast_level=''):
     never trusts anything but `request.user` to scope it (NFR-07).
     """
     settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
-    blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
-    week_grid = build_week_grid(settings_obj, blocks)
+    week_start = selected_week(request)
+    blocks = _week_blocks(request.user, week_start)
+    week_grid = build_week_grid(settings_obj, blocks, week_start)
     context = {
         'week_grid': week_grid,
+        **_navigation_context(request, week_start),
         'toast_message': toast_message,
         'toast_level': toast_level,
     }
@@ -111,11 +145,18 @@ def _render_palette_response(request):
         'planner/partials/palette_panel.html', {'colors': colors}, request=request,
     )
     settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
-    blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
-    week_grid = build_week_grid(settings_obj, blocks)
+    week_start = selected_week(request)
+    blocks = _week_blocks(request.user, week_start)
+    week_grid = build_week_grid(settings_obj, blocks, week_start)
     grid_html = render_to_string(
         'planner/partials/grid_table.html',
-        {'week_grid': week_grid, 'toast_message': '', 'toast_level': '', 'grid_oob': True},
+        {
+            'week_grid': week_grid,
+            'toast_message': '',
+            'toast_level': '',
+            'grid_oob': True,
+            **_navigation_context(request, week_start),
+        },
         request=request,
     )
     return HttpResponse(palette_html + grid_html)
@@ -136,8 +177,10 @@ class GridView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=self.request.user)
-        blocks = TimeBlock.objects.filter(user=self.request.user).select_related('color')
-        context['week_grid'] = build_week_grid(settings_obj, blocks)
+        week_start = selected_week(self.request)
+        blocks = _week_blocks(self.request.user, week_start)
+        context['week_grid'] = build_week_grid(settings_obj, blocks, week_start)
+        context.update(_navigation_context(self.request, week_start))
         return context
 
 
@@ -191,6 +234,7 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
+        kwargs['week_start'] = selected_week(self.request)
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -198,6 +242,9 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
         # An empty cell always spans exactly one row (PRD 5.2.4); the
         # wrapping <td> for the inline create form matches that.
         context['rowspan'] = 1
+        week_start = selected_week(self.request)
+        context['selected_week_start'] = week_start
+        context['selected_week_value'] = week_start.isoformat()
         return context
 
     def form_invalid(self, form):
@@ -242,6 +289,9 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
             copy = TimeBlock(
                 user=self.request.user,
                 label=self.object.label,
+                scheduled_date=self.object.scheduled_date + timedelta(
+                    days=day - self.object.day_of_week,
+                ),
                 day_of_week=day,
                 start_time=self.object.start_time,
                 end_time=self.object.end_time,
@@ -292,12 +342,16 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
+        kwargs['week_start'] = selected_week(self.request)
         return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=self.request.user)
         context['rowspan'] = self.object.get_rowspan(settings_obj.slot_interval)
+        week_start = selected_week(self.request)
+        context['selected_week_start'] = week_start
+        context['selected_week_value'] = week_start.isoformat()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -466,7 +520,11 @@ class CellCancelView(LoginRequiredMixin, View):
             return HttpResponseBadRequest('Invalid day/start/end parameters.')
 
         cell = GridCell(kind='empty', day=day, slot_start=start, slot_end=end)
-        return render(request, 'planner/partials/empty_cell.html', {'cell': cell})
+        return render(
+            request,
+            'planner/partials/empty_cell.html',
+            {'cell': cell, 'selected_week_start': selected_week(request)},
+        )
 
 
 class BlockCancelView(LoginRequiredMixin, View):
@@ -624,8 +682,9 @@ class ExportMarkdownView(LoginRequiredMixin, View):
         # No `select_related('color')` here (unlike every other view in
         # this file) -- render_week_markdown() never reads `block.color`,
         # so that join would be pure overhead for this one view.
-        blocks = TimeBlock.objects.filter(user=request.user)
-        content = render_week_markdown(blocks, settings_obj.time_format)
+        blocks = _week_blocks(request.user, selected_week(request))
+        week_start = selected_week(request)
+        content = render_week_markdown(blocks, settings_obj.time_format, week_start)
         response = HttpResponse(content, content_type='text/markdown; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="weekly-planner.md"'
         return response
@@ -656,8 +715,9 @@ class ExportSVGView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
-        blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
-        week_grid = build_week_grid(settings_obj, blocks)
+        week_start = selected_week(request)
+        blocks = _week_blocks(request.user, week_start)
+        week_grid = build_week_grid(settings_obj, blocks, week_start)
         svg_export = build_svg_export(week_grid)
         response = render(
             request,

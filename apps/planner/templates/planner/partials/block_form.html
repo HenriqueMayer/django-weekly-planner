@@ -84,6 +84,7 @@ Swap strategy (Sprint 6, htmx-interaction):
             class="space-y-3"
         >
             {% csrf_token %}
+            <input type="hidden" name="week" value="{{ selected_week_start|date:'Y-m-d' }}">
 
             {% include 'partials/form_field.html' with field=form.label %}
             {% include 'partials/form_field.html' with field=form.day_of_week %}
@@ -200,7 +201,7 @@ Swap strategy (Sprint 6, htmx-interaction):
                         a behavior change.
                         {% endcomment %}
                         {% url 'planner:cell-cancel' as cell_cancel_base %}
-                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' data_block_cancel=True %}
+                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?week='|add:selected_week_value|add:'&day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' data_block_cancel=True %}
                     {% endif %}
                 </div>
 

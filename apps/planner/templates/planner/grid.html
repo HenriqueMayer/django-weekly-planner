@@ -18,6 +18,10 @@
         <p class="mt-1 text-sm text-slate-600 dark:text-neutral-400">Your time-blocking grid, Monday through Sunday.</p>
     </div>
 
+    <div class="mt-4">
+        {% include 'planner/partials/week_navigation.html' %}
+    </div>
+
     <div class="mt-8">
         {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
     </div>
@@ -35,4 +39,5 @@
     <script src="{% static 'js/grid-drag.js' %}"></script>
     <script src="{% static 'js/contrast.js' %}"></script>
     <script src="{% static 'js/block-form-close.js' %}"></script>
+    <script src="{% static 'js/week-navigation.js' %}"></script>
 {% endblock %}

@@ -11,7 +11,7 @@ view.
 
 import re
 import xml.etree.ElementTree as ET
-from datetime import time
+from datetime import date, time
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -524,6 +524,59 @@ class SettingsUpdateViewTests(TestCase):
         labels = [row.label for row in grid_after.context['week_grid'].rows]
         self.assertIn('6:00 AM', labels)
         self.assertNotIn('06:00', labels)
+
+
+class WeekNavigationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(self.user)
+
+    def test_dashboard_uses_requested_week_and_iso_label(self):
+        TimeBlock.objects.create(
+            user=self.user,
+            label='Future work',
+            scheduled_date=date(2026, 8, 10),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('core:dashboard'), {'week': '2026-08-12'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['selected_week_start'], date(2026, 8, 10))
+        self.assertIn('Week 33 - 2026', response.content.decode())
+        self.assertIn('Future work', response.content.decode())
+
+    def test_requested_week_does_not_render_other_week_blocks(self):
+        TimeBlock.objects.create(
+            user=self.user,
+            label='Other week',
+            scheduled_date=date(2026, 8, 17),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:grid'), {'week': '2026-08-03'})
+
+        self.assertNotIn('Other week', response.content.decode())
+
+    def test_create_preserves_requested_week(self):
+        response = self.client.post(
+            reverse('planner:block-create') + '?week=2026-08-10',
+            {
+                'label': 'Planned later',
+                'day_of_week': 2,
+                'start_time': '09:00',
+                'end_time': '10:00',
+                'week': '2026-08-10',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        block = TimeBlock.objects.get(user=self.user, label='Planned later')
+        self.assertEqual(block.scheduled_date, date(2026, 8, 12))
 
 
 class MixedOperationSequenceTests(TestCase):
