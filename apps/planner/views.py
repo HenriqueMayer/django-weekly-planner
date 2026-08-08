@@ -54,8 +54,11 @@ from apps.planner.dates import (
 from apps.planner.export import build_svg_export, render_week_markdown
 from apps.planner.forms import (
     BlockColorForm,
+    CardAttachmentForm,
     CardCommentForm,
     CardDetailForm,
+    CardLabelForm,
+    CardTransferForm,
     ChecklistItemForm,
     PlannerSettingsForm,
     RecurrenceForm,
@@ -64,8 +67,12 @@ from apps.planner.forms import (
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
     BlockColor,
+    CardAttachment,
     CardComment,
+    CardLabel,
+    CardTransfer,
     ChecklistItem,
+    MentionNotification,
     PlannerSettings,
     TimeBlock,
     minutes_since_midnight,
@@ -76,7 +83,7 @@ from apps.planner.recurrence import (
     restore_occurrence,
     update_weekly_series,
 )
-from apps.planner.services import record_activity
+from apps.planner.services import record_activity, record_mentions
 
 
 def _format_validation_error(exc):
@@ -151,7 +158,9 @@ def _card_detail_context(request, block, form=None, checklist_form=None):
     return {
         'block': block,
         'detail_form': form or CardDetailForm(instance=block),
-        'checklist_form': checklist_form or ChecklistItemForm(),
+        'checklist_form': checklist_form or ChecklistItemForm(
+            parent_queryset=block.checklist_items.filter(parent__isnull=True),
+        ),
         'checklist_items': block.checklist_items.all(),
         'comment_form': CardCommentForm(),
         'comments': (
@@ -161,6 +170,11 @@ def _card_detail_context(request, block, form=None, checklist_form=None):
             Prefetch('replies', queryset=CardComment.objects.select_related('author')),
             )
         ),
+        'card_labels': block.labels.filter(user=request.user),
+        'label_form': CardLabelForm(),
+        'attachment_form': CardAttachmentForm(),
+        'attachments': block.attachments.select_related('uploaded_by'),
+        'transfer_form': CardTransferForm(user=request.user),
         'activities': block.activity_events.select_related('actor')[:20],
         'recurrence_form': (
             RecurrenceForm(instance=block.recurrence_series, user=request.user)
@@ -215,7 +229,10 @@ class ChecklistAddView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
-        form = ChecklistItemForm(request.POST)
+        form = ChecklistItemForm(
+            request.POST,
+            parent_queryset=block.checklist_items.filter(parent__isnull=True),
+        )
         if not form.is_valid():
             return _render_card_detail_response(request, block, checklist_form=form)
         item = form.save(commit=False)
@@ -238,6 +255,7 @@ class CommentAddView(LoginRequiredMixin, View):
         comment.time_block = block
         comment.author = request.user
         comment.save()
+        record_mentions(comment)
         record_activity(
             block,
             request.user,
@@ -256,7 +274,6 @@ class CommentReplyView(LoginRequiredMixin, View):
             pk=kwargs['comment_pk'],
             time_block__pk=kwargs['pk'],
             time_block__user=request.user,
-            parent__isnull=True,
         )
         form = CardCommentForm(request.POST)
         if not form.is_valid():
@@ -266,6 +283,7 @@ class CommentReplyView(LoginRequiredMixin, View):
         reply.author = request.user
         reply.parent = parent
         reply.save()
+        record_mentions(reply)
         record_activity(
             parent.time_block,
             request.user,
@@ -273,6 +291,118 @@ class CommentReplyView(LoginRequiredMixin, View):
             {'comment_id': parent.pk, 'reply_id': reply.pk},
         )
         return _render_card_detail_response(request, parent.time_block)
+
+
+class LabelAddView(LoginRequiredMixin, View):
+    """Create or associate a user-owned label with an owned card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardLabelForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        label, created = CardLabel.objects.get_or_create(
+            user=request.user,
+            name=form.cleaned_data['name'],
+            defaults={'hex_code': form.cleaned_data['hex_code']},
+        )
+        if not created and label.hex_code != form.cleaned_data['hex_code']:
+            label.hex_code = form.cleaned_data['hex_code']
+            label.save(update_fields=['hex_code'])
+        block.labels.add(label)
+        record_activity(block, request.user, 'label_added', {'label_id': label.pk})
+        return _render_card_detail_response(request, block)
+
+
+class LabelRemoveView(LoginRequiredMixin, View):
+    """Remove a user-owned label association without deleting the label."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        label = get_object_or_404(CardLabel, pk=kwargs['label_pk'], user=request.user)
+        block.labels.remove(label)
+        record_activity(block, request.user, 'label_removed', {'label_id': label.pk})
+        return _render_card_detail_response(request, block)
+
+
+class AttachmentAddView(LoginRequiredMixin, View):
+    """Upload one validated attachment to an owned card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardAttachmentForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        attachment = form.save(commit=False)
+        attachment.time_block = block
+        attachment.uploaded_by = request.user
+        attachment.original_name = attachment.file.name
+        attachment.save()
+        record_activity(block, request.user, 'attachment_added', {'attachment_id': attachment.pk})
+        return _render_card_detail_response(request, block)
+
+
+class AttachmentDeleteView(LoginRequiredMixin, View):
+    """Delete an attachment from an owned card."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        attachment = get_object_or_404(
+            CardAttachment.objects.select_related('time_block'),
+            pk=kwargs['attachment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        block = attachment.time_block
+        attachment.file.delete(save=False)
+        attachment.delete()
+        record_activity(
+            block,
+            request.user,
+            'attachment_deleted',
+            {'attachment_id': kwargs['attachment_pk']},
+        )
+        return _render_card_detail_response(request, block)
+
+
+class CardTransferView(LoginRequiredMixin, View):
+    """Transfer an owned card after validating it for the destination user."""
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardTransferForm(request.POST, user=request.user)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        previous_owner = block.user
+        recipient = form.cleaned_data['recipient']
+        block.user = recipient
+        try:
+            block.save()
+        except ValidationError:
+            block.user = previous_owner
+            return HttpResponseBadRequest(
+                'Transfer rejected: the card overlaps a card owned by the recipient.'
+            )
+        transfer = CardTransfer.objects.create(
+            time_block=block,
+            from_user=previous_owner,
+            to_user=recipient,
+            initiated_by=request.user,
+        )
+        record_activity(
+            block,
+            request.user,
+            'card_transferred',
+            {'transfer_id': transfer.pk, 'to_user_id': recipient.pk},
+        )
+        grid_response = _render_grid_response(request)
+        return HttpResponse(
+            '<aside id="card-panel" data-card-panel></aside>' + grid_response.content.decode()
+        )
 
 
 class CommentUpdateView(LoginRequiredMixin, View):
@@ -290,6 +420,7 @@ class CommentUpdateView(LoginRequiredMixin, View):
         if not form.is_valid():
             return _render_card_detail_response(request, comment.time_block)
         form.save()
+        record_mentions(comment)
         record_activity(
             comment.time_block,
             request.user,
@@ -398,7 +529,28 @@ class ChecklistMoveView(LoginRequiredMixin, View):
             time_block__user=request.user,
         )
         direction = request.POST.get('direction')
-        items = list(item.time_block.checklist_items.order_by('position', 'created_at', 'pk'))
+        sibling_qs = item.time_block.checklist_items.filter(parent=item.parent)
+        target_pk = request.POST.get('target_pk')
+        items = list(sibling_qs.order_by('position', 'created_at', 'pk'))
+        if target_pk:
+            target = next(
+                (candidate for candidate in items if str(candidate.pk) == target_pk),
+                None,
+            )
+            if target is None or target == item:
+                return _render_card_detail_response(request, item.time_block)
+            items.remove(item)
+            items.insert(items.index(target), item)
+            for position, sibling in enumerate(items):
+                sibling.position = position
+                sibling.save(update_fields=['position'])
+            record_activity(
+                item.time_block,
+                request.user,
+                'checklist_item_moved',
+                {'item_id': item.pk, 'target_id': target.pk},
+            )
+            return _render_card_detail_response(request, item.time_block)
         index = items.index(item)
         target_index = index - 1 if direction == 'up' else index + 1
         if direction not in ('up', 'down') or not 0 <= target_index < len(items):
@@ -597,6 +749,72 @@ class GridView(LoginRequiredMixin, TemplateView):
         context['week_grid'] = build_week_grid(settings_obj, blocks, week_start)
         context.update(_navigation_context(self.request, week_start))
         return context
+
+
+class KanbanView(LoginRequiredMixin, TemplateView):
+    """Show the selected week's cards grouped by their existing status."""
+
+    template_name = 'planner/kanban.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        week_start = selected_week(self.request)
+        blocks = list(
+            _week_blocks(self.request.user, week_start)
+            .prefetch_related('labels')
+        )
+        context['columns'] = [
+            {
+                'value': value,
+                'label': label,
+                'blocks': [block for block in blocks if block.status == value],
+            }
+            for value, label in TimeBlock.STATUS_CHOICES
+        ]
+        context.update(_navigation_context(self.request, week_start))
+        context['selected_week_start'] = week_start
+        return context
+
+
+class MentionNotificationView(LoginRequiredMixin, TemplateView):
+    """List mentions addressed to the authenticated user."""
+
+    template_name = 'planner/notifications.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['notifications'] = MentionNotification.objects.filter(
+            mentioned_user=self.request.user,
+        ).select_related('comment', 'comment__time_block', 'comment__author')
+        context['unread_count'] = MentionNotification.objects.filter(
+            mentioned_user=self.request.user,
+            is_read=False,
+        ).count()
+        return context
+
+
+class MentionReadView(LoginRequiredMixin, View):
+    """Mark one ownership-scoped mention as read."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        notification = get_object_or_404(
+            MentionNotification,
+            pk=kwargs['pk'],
+            mentioned_user=request.user,
+        )
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        return render(request, 'planner/notifications.html', {
+            'notifications': MentionNotification.objects.filter(
+                mentioned_user=request.user,
+            ).select_related('comment', 'comment__time_block', 'comment__author'),
+            'unread_count': MentionNotification.objects.filter(
+                mentioned_user=request.user,
+                is_read=False,
+            ).count(),
+        })
 
 
 class SettingsUpdateView(LoginRequiredMixin, UpdateView):

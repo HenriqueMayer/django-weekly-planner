@@ -3,6 +3,8 @@
 from django.urls import path
 
 from apps.planner.views import (
+    AttachmentAddView,
+    AttachmentDeleteView,
     BlockCancelView,
     BlockCreateView,
     BlockDeleteView,
@@ -10,6 +12,7 @@ from apps.planner.views import (
     BlockUpdateView,
     CardDetailUpdateView,
     CardDetailView,
+    CardTransferView,
     CellCancelView,
     ChecklistAddView,
     ChecklistDeleteView,
@@ -27,6 +30,11 @@ from apps.planner.views import (
     ExportMarkdownView,
     ExportSVGView,
     GridView,
+    KanbanView,
+    LabelAddView,
+    LabelRemoveView,
+    MentionNotificationView,
+    MentionReadView,
     OccurrenceRestoreView,
     OccurrenceSkipView,
     PaletteView,
@@ -38,6 +46,9 @@ app_name = 'planner'
 
 urlpatterns = [
     path('', GridView.as_view(), name='grid'),
+    path('kanban/', KanbanView.as_view(), name='kanban'),
+    path('notifications/', MentionNotificationView.as_view(), name='notifications'),
+    path('notifications/<int:pk>/read/', MentionReadView.as_view(), name='notification-read'),
     path('settings/', SettingsUpdateView.as_view(), name='settings'),
     path('blocks/create/', BlockCreateView.as_view(), name='block-create'),
     path('blocks/<int:pk>/edit/', BlockUpdateView.as_view(), name='block-edit'),
@@ -52,6 +63,19 @@ urlpatterns = [
     ),
     path('blocks/<int:pk>/checklist/add/', ChecklistAddView.as_view(), name='checklist-add'),
     path('blocks/<int:pk>/comments/add/', CommentAddView.as_view(), name='comment-add'),
+    path('blocks/<int:pk>/labels/add/', LabelAddView.as_view(), name='label-add'),
+    path('blocks/<int:pk>/attachments/add/', AttachmentAddView.as_view(), name='attachment-add'),
+    path('blocks/<int:pk>/transfer/', CardTransferView.as_view(), name='card-transfer'),
+    path(
+        'blocks/<int:pk>/attachments/<int:attachment_pk>/delete/',
+        AttachmentDeleteView.as_view(),
+        name='attachment-delete',
+    ),
+    path(
+        'blocks/<int:pk>/labels/<int:label_pk>/remove/',
+        LabelRemoveView.as_view(),
+        name='label-remove',
+    ),
     path(
         'blocks/<int:pk>/comments/<int:comment_pk>/reply/',
         CommentReplyView.as_view(),

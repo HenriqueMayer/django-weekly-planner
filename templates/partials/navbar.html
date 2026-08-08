@@ -9,6 +9,8 @@
             {% if request.user.is_authenticated %}
                 {% url 'core:dashboard' as dashboard_url %}
                 {% include 'partials/buttons/primary.html' with href=dashboard_url label='Dashboard' %}
+                <a href="{% url 'planner:kanban' %}" class="text-sm font-medium text-slate-600 dark:text-neutral-400 hover:text-indigo-600 dark:hover:text-indigo-400">Kanban</a>
+                <a href="{% url 'planner:notifications' %}" class="text-sm font-medium text-slate-600 dark:text-neutral-400 hover:text-indigo-600 dark:hover:text-indigo-400">Notifications</a>
                 <form method="post" action="{% url 'accounts:logout' %}">
                     {% csrf_token %}
                     {% include 'partials/buttons/secondary.html' with label='Logout' button_type='submit' %}

@@ -24,6 +24,39 @@
             <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:shadow-indigo-500/10 dark:focus:ring-offset-[#313335]">Save card</button>
         </form>
 
+        <section class="mt-6" aria-labelledby="labels-title">
+            <h3 id="labels-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Labels</h3>
+            <div class="mt-2 flex flex-wrap gap-2">
+                {% for label in card_labels %}
+                    <form method="post" action="{% url 'planner:label-remove' block.pk label.pk %}" hx-post="{% url 'planner:label-remove' block.pk label.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                        {% csrf_token %}<button type="submit" class="rounded-full px-2.5 py-1 text-xs font-medium text-white" style="background-color: {{ label.hex_code }};">{{ label.name }} &times;</button>
+                    </form>
+                {% empty %}<span class="text-sm text-slate-500 dark:text-neutral-400">No labels yet.</span>{% endfor %}
+            </div>
+            <form class="mt-3 flex gap-2" method="post" action="{% url 'planner:label-add' block.pk %}" hx-post="{% url 'planner:label-add' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                {% csrf_token %}<input type="text" name="name" maxlength="50" required placeholder="Label name" aria-label="New label name" class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100"><input type="color" name="hex_code" value="#64748B" aria-label="Label color" class="h-9 w-10 rounded border border-slate-300 dark:border-slate-600"><button type="submit" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600 dark:text-neutral-200">Add</button>
+            </form>
+        </section>
+
+        <section class="mt-6" aria-labelledby="attachments-title">
+            <h3 id="attachments-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Attachments</h3>
+            <ul class="mt-2 space-y-2">
+                {% for attachment in attachments %}
+                    <li class="flex items-center gap-2 text-sm"><a href="{{ attachment.file.url }}" class="min-w-0 flex-1 truncate text-indigo-600 hover:underline dark:text-indigo-300">{{ attachment.original_name }}</a><form method="post" action="{% url 'planner:attachment-delete' block.pk attachment.pk %}" hx-post="{% url 'planner:attachment-delete' block.pk attachment.pk %}" hx-target="#card-panel" hx-swap="outerHTML">{% csrf_token %}<button type="submit" class="text-xs text-rose-600 hover:underline dark:text-rose-300">Delete</button></form></li>
+                {% empty %}<li class="text-sm text-slate-500 dark:text-neutral-400">No attachments yet.</li>{% endfor %}
+            </ul>
+            <form class="mt-3 flex gap-2" enctype="multipart/form-data" method="post" action="{% url 'planner:attachment-add' block.pk %}" hx-post="{% url 'planner:attachment-add' block.pk %}" hx-encoding="multipart/form-data" hx-target="#card-panel" hx-swap="outerHTML">
+                {% csrf_token %}<input type="file" name="file" required accept=".csv,.doc,.docx,.jpg,.jpeg,.md,.pdf,.png,.txt" aria-label="Attachment file" class="min-w-0 flex-1 text-xs text-slate-600 dark:text-neutral-300"><button type="submit" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600 dark:text-neutral-200">Upload</button>
+            </form>
+        </section>
+
+        <section class="mt-6" aria-labelledby="transfer-title">
+            <h3 id="transfer-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Transfer card</h3>
+            <form class="mt-2 flex gap-2" method="post" action="{% url 'planner:card-transfer' block.pk %}" hx-post="{% url 'planner:card-transfer' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                {% csrf_token %}<select name="recipient" required aria-label="Transfer card to" class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100"><option value="">Choose a user</option>{% for user in transfer_form.fields.recipient.queryset %}<option value="{{ user.pk }}">{{ user.username }}</option>{% endfor %}</select><button type="submit" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600 dark:text-neutral-200">Transfer</button>
+            </form>
+        </section>
+
         <section class="mt-8 border-t border-slate-200 pt-6 dark:border-slate-700" aria-labelledby="checklist-title">
             <div class="flex items-center justify-between gap-3">
                 <h3 id="checklist-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Checklist</h3>
@@ -31,7 +64,7 @@
             </div>
             <ul class="mt-3 space-y-2">
                 {% for item in checklist_items %}
-                    <li class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                    <li draggable="true" data-checklist-item="{{ item.pk }}" data-checklist-move-url="{% url 'planner:checklist-move' block.pk item.pk %}" class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
                         <form method="post" action="{% url 'planner:checklist-toggle' block.pk item.pk %}" hx-post="{% url 'planner:checklist-toggle' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
                             {% csrf_token %}
                             <button type="submit" aria-label="{% if item.is_completed %}Mark {{ item.text }} incomplete{% else %}Mark {{ item.text }} complete{% endif %}" class="flex h-5 w-5 items-center justify-center rounded border {% if item.is_completed %}border-indigo-500 bg-indigo-500 text-white{% else %}border-slate-300 dark:border-slate-600{% endif %}">
@@ -49,6 +82,9 @@
                             {% if not forloop.first %}<form method="post" action="{% url 'planner:checklist-move' block.pk item.pk %}" hx-post="{% url 'planner:checklist-move' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">{% csrf_token %}<input type="hidden" name="direction" value="up"><button type="submit" aria-label="Move {{ item.text }} up" class="text-xs text-slate-400 hover:text-indigo-600">&#9650;</button></form>{% endif %}
                             {% if not forloop.last %}<form method="post" action="{% url 'planner:checklist-move' block.pk item.pk %}" hx-post="{% url 'planner:checklist-move' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">{% csrf_token %}<input type="hidden" name="direction" value="down"><button type="submit" aria-label="Move {{ item.text }} down" class="text-xs text-slate-400 hover:text-indigo-600">&#9660;</button></form>{% endif %}
                         </div>
+                        <ul class="ml-7 mt-2 space-y-1">
+                            {% for child in item.children.all %}<li class="text-xs text-slate-600 dark:text-neutral-400">{% if child.is_completed %}<span class="line-through">{% endif %}{{ child.text }}{% if child.is_completed %}</span>{% endif %}</li>{% endfor %}
+                        </ul>
                         <form method="post" action="{% url 'planner:checklist-delete' block.pk item.pk %}" hx-post="{% url 'planner:checklist-delete' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
                             {% csrf_token %}<button type="submit" aria-label="Delete {{ item.text }}" class="text-slate-400 hover:text-rose-600 dark:text-neutral-500 dark:hover:text-rose-300">&times;</button>
                         </form>
@@ -60,6 +96,7 @@
             <form class="mt-3 flex gap-2" method="post" action="{% url 'planner:checklist-add' block.pk %}" hx-post="{% url 'planner:checklist-add' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
                 {% csrf_token %}
                 <input type="text" name="text" maxlength="300" required placeholder="Add an item" aria-label="New checklist item" class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100">
+                <select name="parent" aria-label="Parent checklist item" class="max-w-32 rounded-lg border border-slate-300 bg-white px-2 text-xs dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100"><option value="">Top level</option>{% for parent in checklist_form.fields.parent.queryset %}<option value="{{ parent.pk }}">Child of {{ parent.text }}</option>{% endfor %}</select>
                 <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-neutral-100 dark:text-slate-900 dark:hover:bg-white">Add</button>
             </form>
             {% for error in checklist_form.text.errors %}<p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>{% endfor %}
@@ -133,6 +170,7 @@
                                 <div class="rounded-lg bg-white p-2 ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-slate-700">
                                     <p class="whitespace-pre-wrap text-xs text-slate-700 dark:text-neutral-200">{{ reply.body }}</p>
                                     <p class="mt-1 text-[10px] text-slate-500 dark:text-neutral-400">{{ reply.author.username }} · {{ reply.created_at|date:'j M Y, H:i' }}</p>
+                                    <details class="mt-1"><summary class="cursor-pointer text-[10px] text-indigo-600 dark:text-indigo-300">Reply</summary><form class="mt-1 flex gap-1" method="post" action="{% url 'planner:comment-reply' block.pk reply.pk %}" hx-post="{% url 'planner:comment-reply' block.pk reply.pk %}" hx-target="#card-panel" hx-swap="outerHTML">{% csrf_token %}<textarea name="body" maxlength="2000" required rows="2" placeholder="Write a reply" class="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100"></textarea><button type="submit" class="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white">Reply</button></form></details>
                                 </div>
                             {% endfor %}
                             <details>

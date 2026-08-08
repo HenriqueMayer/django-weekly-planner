@@ -1,14 +1,18 @@
 """Forms for the planner app (PRD FR-06, FR-07, FR-08, FR-13, §8.2, Sprint 6)."""
 
 from datetime import timedelta
+from pathlib import Path
 
 from django import forms
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from apps.planner.dates import normalize_week_start
 from apps.planner.models import (
     BlockColor,
+    CardAttachment,
     CardComment,
+    CardLabel,
     ChecklistItem,
     PlannerSettings,
     RecurrenceSeries,
@@ -207,7 +211,12 @@ class ChecklistItemForm(forms.ModelForm):
 
     class Meta:
         model = ChecklistItem
-        fields = ['text']
+        fields = ['text', 'parent']
+
+    def __init__(self, *args, parent_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['parent'].required = False
+        self.fields['parent'].queryset = parent_queryset or ChecklistItem.objects.none()
 
 
 class CardCommentForm(forms.ModelForm):
@@ -217,6 +226,47 @@ class CardCommentForm(forms.ModelForm):
         model = CardComment
         fields = ['body']
         widgets = {'body': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Add a comment'})}
+
+
+class CardLabelForm(forms.ModelForm):
+    """Create or associate a user-owned label with a card."""
+
+    class Meta:
+        model = CardLabel
+        fields = ['name', 'hex_code']
+        widgets = {'hex_code': forms.TextInput(attrs={'type': 'color'})}
+
+
+class CardAttachmentForm(forms.ModelForm):
+    """Validate a small, allow-listed card attachment."""
+
+    class Meta:
+        model = CardAttachment
+        fields = ['file']
+        widgets = {
+            'file': forms.ClearableFileInput(
+                attrs={'accept': '.csv,.doc,.docx,.jpg,.jpeg,.md,.pdf,.png,.txt'},
+            ),
+        }
+
+    def clean_file(self):
+        uploaded = self.cleaned_data['file']
+        if uploaded.size > CardAttachment.MAX_SIZE:
+            raise ValidationError('Attachments must be 10 MB or smaller.')
+        if Path(uploaded.name).suffix.lower() not in CardAttachment.ALLOWED_EXTENSIONS:
+            raise ValidationError('This file type is not supported.')
+        return uploaded
+
+
+class CardTransferForm(forms.Form):
+    """Choose an existing user to receive the card."""
+
+    recipient = forms.ModelChoiceField(queryset=get_user_model().objects.none())
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['recipient'].queryset = get_user_model().objects.exclude(pk=user.pk)
+        self.fields['recipient'].label = 'Transfer to'
 
 
 class BlockColorForm(forms.ModelForm):

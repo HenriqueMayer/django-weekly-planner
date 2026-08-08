@@ -7,6 +7,7 @@ write and templates/views stay free of layout or business logic.
 
 import math
 from datetime import time
+from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -121,6 +122,29 @@ class BlockColor(TimestampedModel):
             models.UniqueConstraint(
                 fields=['user', 'name'],
                 name='unique_block_color_name_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class CardLabel(TimestampedModel):
+    """Reusable user-owned label that can be attached to many cards."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='card_labels',
+    )
+    name = models.CharField(max_length=50)
+    hex_code = models.CharField(max_length=7, validators=[HEX_COLOR_VALIDATOR], default='#64748B')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'name'],
+                name='unique_card_label_name_per_user',
             ),
         ]
 
@@ -251,6 +275,11 @@ class TimeBlock(TimestampedModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='time_blocks',
+    )
+    labels = models.ManyToManyField(
+        CardLabel,
+        blank=True,
+        related_name='cards',
     )
     label = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -398,6 +427,13 @@ class ChecklistItem(TimestampedModel):
         on_delete=models.CASCADE,
         related_name='checklist_items',
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+    )
     text = models.CharField(max_length=300)
     is_completed = models.BooleanField(default=False)
     position = models.PositiveIntegerField(default=0)
@@ -439,3 +475,82 @@ class CardComment(TimestampedModel):
 
     def __str__(self):
         return f'Comment on {self.time_block}'
+
+
+class MentionNotification(TimestampedModel):
+    """A notification created when a user is mentioned in a card comment."""
+
+    comment = models.ForeignKey(
+        CardComment,
+        on_delete=models.CASCADE,
+        related_name='mentions',
+    )
+    mentioned_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='planner_mentions',
+    )
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['comment', 'mentioned_user'],
+                name='unique_comment_mention',
+            ),
+        ]
+
+
+class CardAttachment(TimestampedModel):
+    """A small uploaded file attached to an ownership-scoped card."""
+
+    MAX_SIZE = 10 * 1024 * 1024
+    ALLOWED_EXTENSIONS = {'.csv', '.doc', '.docx', '.jpg', '.jpeg', '.md', '.pdf', '.png', '.txt'}
+
+    time_block = models.ForeignKey(
+        TimeBlock,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='planner_attachments',
+    )
+    file = models.FileField(upload_to='planner/attachments/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+
+    def clean(self):
+        super().clean()
+        if self.file:
+            if self.file.size > self.MAX_SIZE:
+                raise ValidationError('Attachments must be 10 MB or smaller.')
+            if Path(self.file.name).suffix.lower() not in self.ALLOWED_EXTENSIONS:
+                raise ValidationError('This file type is not supported.')
+
+    def __str__(self):
+        return self.original_name
+
+
+class CardTransfer(TimestampedModel):
+    """Audit record for changing a card's owner."""
+
+    time_block = models.ForeignKey(TimeBlock, on_delete=models.CASCADE, related_name='transfers')
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='outgoing_card_transfers',
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='incoming_card_transfers',
+    )
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='initiated_card_transfers',
+    )
+
+    class Meta:
+        ordering = ('-created_at', '-pk')

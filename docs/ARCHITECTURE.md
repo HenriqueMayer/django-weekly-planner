@@ -23,6 +23,11 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Phase C — Weekly Recurrence: complete.** *(Adds weekly rules, dated materialized occurrences, exceptions, rule editing, occurrence skipping, and per-occurrence overrides.)*
 **Phase D — Card Checklists: complete.** *(Adds ordered checklist items, editing, accessible reordering, and HTMX mutations.)*
 **Phase E — Card Comments: complete.** *(Adds authored comments, author-only editing/deletion, one-level replies, and HTMX mutations.)*
+**Phase F — Card Labels: complete.** *(Adds reusable user-owned labels and card associations.)*
+**Phase G — Card Attachments: complete.** *(Adds validated card uploads and storage-backed attachment controls.)*
+**Phase H — Card Transfer: complete.** *(Adds validated ownership transfer and audit records.)*
+**Phase I — Kanban View: complete.** *(Adds a selected-week status board over existing cards.)*
+**Phase J — Collaboration Extensions: complete.** *(Adds nested checklists, replies, and mentions.)*
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -51,7 +56,7 @@ tagging and publishing it (9.3.2), which is withheld this session by explicit in
 of the original nine-sprint plan, users can now also export their week as Markdown, SVG, a
 client-side-rendered PNG, or a printed/PDF page (`static/js/export.js` + a new "Export" toolbar
 dropdown) — a post-launch feature added entirely without any new runtime dependency, per explicit
-user direction. The automated suite now stands at 131 tests. See §13 in the PRD for the full
+user direction. The automated suite now stands at 141 tests. See §13 in the PRD for the full
 sprint plan and checklist.
 
 ---

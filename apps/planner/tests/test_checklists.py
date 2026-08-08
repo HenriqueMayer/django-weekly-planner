@@ -100,3 +100,14 @@ class ChecklistViewTests(TestCase):
                 event_type='checklist_item_moved',
             ).exists()
         )
+
+    def test_item_can_be_nested_under_top_level_item(self):
+        parent = ChecklistItem.objects.create(time_block=self.block, text='Prepare', position=0)
+        response = self.client.post(
+            reverse('planner:checklist-add', args=[self.block.pk]),
+            {'text': 'Gather materials', 'parent': parent.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        child = ChecklistItem.objects.get(text='Gather materials')
+        self.assertEqual(child.parent, parent)

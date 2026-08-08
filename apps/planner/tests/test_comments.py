@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.planner.models import ActivityEvent, CardComment, TimeBlock
+from apps.planner.models import ActivityEvent, CardComment, MentionNotification, TimeBlock
 
 User = get_user_model()
 
@@ -111,3 +111,24 @@ class CommentViewTests(TestCase):
                 event_type='comment_replied',
             ).exists()
         )
+
+    def test_comment_mentions_create_notifications(self):
+        response = self.client.post(
+            reverse('planner:comment-add', args=[self.block.pk]),
+            {'body': f'@{self.other_user.username} please review this.'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MentionNotification.objects.count(), 1)
+        notification = MentionNotification.objects.get()
+        self.assertEqual(notification.mentioned_user, self.other_user)
+
+        self.client.force_login(self.other_user)
+        response = self.client.get(reverse('planner:notifications'))
+        self.assertContains(response, 'mentioned you')
+        response = self.client.post(
+            reverse('planner:notification-read', args=[notification.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        notification.refresh_from_db()
+        self.assertTrue(notification.is_read)

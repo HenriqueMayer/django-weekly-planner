@@ -156,6 +156,8 @@ STATICFILES_DIRS = [
 # baked into the image; local development never writes to this directory
 # and serves straight from STATICFILES_DIRS instead.
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # WhiteNoise serves collected static files directly from the container with
 # no separate nginx/reverse proxy (NFR-01, PRD 9.1.1). `whitenoise` is a
