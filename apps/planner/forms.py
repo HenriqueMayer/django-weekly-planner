@@ -82,6 +82,22 @@ class TimeBlockForm(forms.ModelForm):
             'block are skipped and reported after saving.'
         ),
     )
+    recurrence_weekly = forms.BooleanField(
+        required=False,
+        label='Repeat weekly',
+        help_text='Create dated occurrences until the selected end date.',
+    )
+    recurrence_weekdays = forms.MultipleChoiceField(
+        choices=TimeBlock.DAY_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label='Weekly days',
+    )
+    recurrence_until = forms.DateField(
+        required=False,
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        label='Repeat until',
+    )
 
     class Meta:
         model = TimeBlock
@@ -109,6 +125,17 @@ class TimeBlockForm(forms.ModelForm):
         day = cleaned_data.get('day_of_week')
         if day is not None:
             self.instance.scheduled_date = self.week_start + timedelta(days=int(day))
+        if cleaned_data.get('recurrence_weekly'):
+            if not cleaned_data.get('recurrence_weekdays'):
+                self.add_error('recurrence_weekdays', 'Choose at least one weekly day.')
+            until = cleaned_data.get('recurrence_until')
+            if until and until < self.week_start:
+                self.add_error(
+                    'recurrence_until',
+                    'Repeat-until date must be on or after this week.',
+                )
+            if not until:
+                self.add_error('recurrence_until', 'Choose an end date for weekly repetition.')
         return cleaned_data
 
 

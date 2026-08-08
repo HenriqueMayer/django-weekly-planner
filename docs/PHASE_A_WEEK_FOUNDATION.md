@@ -24,9 +24,9 @@
 
 ## Recurrence decision
 
-Recurring weekly cards are intentionally not materialized in this phase. The date foundation is now
-ready for the next domain phase, where a recurrence series and occurrence exceptions can be added
-without storing week numbers as persistent data or creating a second planner data source.
+Recurring weekly cards were intentionally not materialized in this phase. The date foundation is
+now used by Phase C's recurrence series and occurrence exceptions without storing week numbers as
+persistent data or creating a second planner data source.
 
 ## Verification
 

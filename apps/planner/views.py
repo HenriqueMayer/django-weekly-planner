@@ -61,6 +61,7 @@ from apps.planner.models import (
     minutes_since_midnight,
     time_from_minutes,
 )
+from apps.planner.recurrence import create_weekly_series
 from apps.planner.services import record_activity
 
 
@@ -384,6 +385,28 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
         skipped, not aborted -- reported through the toast channel, since
         the primary block has already saved successfully by that point.
         """
+        if form.cleaned_data.get('recurrence_weekly'):
+            series = create_weekly_series(
+                user=self.request.user,
+                label=form.cleaned_data['label'],
+                start_time=form.cleaned_data['start_time'],
+                end_time=form.cleaned_data['end_time'],
+                starts_on=form.instance.scheduled_date,
+                weekdays=[int(day) for day in form.cleaned_data['recurrence_weekdays']],
+                ends_on=form.cleaned_data['recurrence_until'],
+                color=form.cleaned_data.get('color'),
+            )
+            occurrences = list(series.occurrences.order_by('scheduled_date'))
+            if occurrences:
+                self.object = occurrences[0]
+                record_activity(
+                    self.object,
+                    self.request.user,
+                    'recurrence_created',
+                    {'series_id': series.pk, 'occurrence_count': len(occurrences)},
+                )
+            return _render_grid_response(self.request)
+
         self.object = form.save()
         record_activity(
             self.object,

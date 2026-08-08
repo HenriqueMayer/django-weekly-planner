@@ -6,7 +6,14 @@ user-facing feature.
 
 from django.contrib import admin
 
-from apps.planner.models import ActivityEvent, BlockColor, PlannerSettings, TimeBlock
+from apps.planner.models import (
+    ActivityEvent,
+    BlockColor,
+    PlannerSettings,
+    RecurrenceException,
+    RecurrenceSeries,
+    TimeBlock,
+)
 
 
 @admin.register(TimeBlock)
@@ -20,3 +27,5 @@ class TimeBlockAdmin(admin.ModelAdmin):
 admin.site.register(BlockColor)
 admin.site.register(PlannerSettings)
 admin.site.register(ActivityEvent)
+admin.site.register(RecurrenceSeries)
+admin.site.register(RecurrenceException)

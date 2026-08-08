@@ -20,6 +20,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 10 — Grid Export (Markdown, SVG, PNG, PDF): complete.** *(Post-launch addition, not in the PRD's original §13 plan — see below.)*
 **Phase A — Week Foundation: complete.** *(Adds date-aware week navigation and the calendar popover; recurrence is reserved for the next domain phase.)*
 **Phase B — Card Details: complete.** *(Adds status, description, due date, activity, and the HTMX detail panel.)*
+**Phase C — Weekly Recurrence: complete.** *(Adds weekly rules, dated materialized occurrences, and exceptions.)*
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell
@@ -100,6 +101,7 @@ django-weekly-planner/
 │       ├── grid.py             # build_week_grid() — pure-Python matrix builder (Sprint 5)
 │       ├── dates.py            # ISO-week normalization and calendar helpers (Phase A)
 │       ├── services.py         # transactional activity recording (Phase B)
+│       ├── recurrence.py       # weekly series materialization (Phase C)
 │       ├── export.py           # Sprint 10 (new feature): render_week_markdown(),
 │       │                       # build_svg_export() + SvgRect/SvgText/SvgExport dataclasses
 │       ├── signals.py          # post_save on User -> auto-create PlannerSettings

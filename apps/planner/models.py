@@ -23,6 +23,15 @@ HEX_COLOR_VALIDATOR = RegexValidator(
 
 MIDNIGHT = time(0, 0)
 MINUTES_PER_DAY = 24 * 60
+STATUS_CHOICES = (
+    ('planned', 'Planned'),
+    ('in_progress', 'In progress'),
+    ('partial', 'Partial'),
+    ('completed', 'Completed'),
+    ('incomplete', 'Incomplete'),
+    ('abandoned', 'Abandoned'),
+    ('transferred', 'Transferred'),
+)
 
 
 def minutes_since_midnight(value, treat_midnight_as_end_of_day=False):
@@ -146,6 +155,77 @@ class PlannerSettings(TimestampedModel):
         return f'Planner settings for {self.user}'
 
 
+class RecurrenceSeries(TimestampedModel):
+    """Weekly recurrence rule whose materialized rows are `TimeBlock`s."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recurrence_series',
+    )
+    label = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planned')
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    color = models.ForeignKey(
+        BlockColor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recurrence_series',
+    )
+    starts_on = models.DateField()
+    ends_on = models.DateField(null=True, blank=True)
+    weekdays = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ('starts_on', 'start_time')
+
+    def __str__(self):
+        return f'{self.label} ({self.starts_on})'
+
+    def clean(self):
+        super().clean()
+        valid_days = {day for day, _ in TimeBlock.DAY_CHOICES}
+        if not self.weekdays or any(day not in valid_days for day in self.weekdays):
+            raise ValidationError('Choose at least one valid recurrence day.')
+        if self.ends_on and self.ends_on < self.starts_on:
+            raise ValidationError('Recurrence end date must be on or after its start date.')
+        if self.start_time == self.end_time and self.start_time != MIDNIGHT:
+            raise ValidationError('End time must be after start time.')
+        if self.start_time and self.end_time:
+            duration = minutes_since_midnight(
+                self.end_time, treat_midnight_as_end_of_day=True,
+            ) - minutes_since_midnight(self.start_time)
+            if duration <= 0:
+                raise ValidationError('End time must be after start time.')
+
+    def save(self, *args, **kwargs):
+        self.weekdays = sorted({int(day) for day in self.weekdays})
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class RecurrenceException(TimestampedModel):
+    """A date intentionally omitted from a recurrence series."""
+
+    series = models.ForeignKey(
+        RecurrenceSeries,
+        on_delete=models.CASCADE,
+        related_name='exceptions',
+    )
+    occurrence_date = models.DateField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['series', 'occurrence_date'],
+                name='unique_recurrence_exception_date',
+            ),
+        ]
+
+
 class TimeBlock(TimestampedModel):
     """A single scheduled block on one day of a user's week (PRD §8.2)."""
 
@@ -165,15 +245,7 @@ class TimeBlock(TimestampedModel):
     STATUS_INCOMPLETE = 'incomplete'
     STATUS_ABANDONED = 'abandoned'
     STATUS_TRANSFERRED = 'transferred'
-    STATUS_CHOICES = (
-        (STATUS_PLANNED, 'Planned'),
-        (STATUS_IN_PROGRESS, 'In progress'),
-        (STATUS_PARTIAL, 'Partial'),
-        (STATUS_COMPLETED, 'Completed'),
-        (STATUS_INCOMPLETE, 'Incomplete'),
-        (STATUS_ABANDONED, 'Abandoned'),
-        (STATUS_TRANSFERRED, 'Transferred'),
-    )
+    STATUS_CHOICES = STATUS_CHOICES
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -184,6 +256,13 @@ class TimeBlock(TimestampedModel):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANNED)
     due_at = models.DateTimeField(null=True, blank=True)
+    recurrence_series = models.ForeignKey(
+        RecurrenceSeries,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='occurrences',
+    )
     # Nullable during the transition so old programmatic callers can still
     # save a day-only block; planner forms always populate this field.
     scheduled_date = models.DateField(null=True, blank=True)
