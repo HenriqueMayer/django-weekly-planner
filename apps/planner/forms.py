@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from apps.planner.dates import normalize_week_start
 from apps.planner.models import (
     BlockColor,
+    ChecklistItem,
     PlannerSettings,
     RecurrenceSeries,
     TimeBlock,
@@ -198,6 +199,14 @@ class RecurrenceForm(forms.ModelForm):
         if not weekdays:
             raise ValidationError('Choose at least one weekly day.')
         return weekdays
+
+
+class ChecklistItemForm(forms.ModelForm):
+    """Create one checklist item without exposing card ownership fields."""
+
+    class Meta:
+        model = ChecklistItem
+        fields = ['text']
 
 
 class BlockColorForm(forms.ModelForm):

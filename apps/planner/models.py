@@ -388,3 +388,25 @@ class ActivityEvent(TimestampedModel):
         indexes = [
             models.Index(fields=['time_block', '-created_at']),
         ]
+
+
+class ChecklistItem(TimestampedModel):
+    """An ordered, ownership-scoped checklist item on a planner card."""
+
+    time_block = models.ForeignKey(
+        TimeBlock,
+        on_delete=models.CASCADE,
+        related_name='checklist_items',
+    )
+    text = models.CharField(max_length=300)
+    is_completed = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ('position', 'created_at', 'pk')
+        indexes = [
+            models.Index(fields=['time_block', 'position']),
+        ]
+
+    def __str__(self):
+        return self.text

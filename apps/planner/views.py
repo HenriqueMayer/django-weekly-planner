@@ -55,6 +55,7 @@ from apps.planner.export import build_svg_export, render_week_markdown
 from apps.planner.forms import (
     BlockColorForm,
     CardDetailForm,
+    ChecklistItemForm,
     PlannerSettingsForm,
     RecurrenceForm,
     TimeBlockForm,
@@ -62,6 +63,7 @@ from apps.planner.forms import (
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
     BlockColor,
+    ChecklistItem,
     PlannerSettings,
     TimeBlock,
     minutes_since_midnight,
@@ -142,11 +144,13 @@ def _render_grid_response(request, toast_message='', toast_level=''):
     return render(request, 'planner/partials/grid_table.html', context)
 
 
-def _card_detail_context(request, block, form=None):
+def _card_detail_context(request, block, form=None, checklist_form=None):
     week_start = selected_week(request)
     return {
         'block': block,
         'detail_form': form or CardDetailForm(instance=block),
+        'checklist_form': checklist_form or ChecklistItemForm(),
+        'checklist_items': block.checklist_items.all(),
         'activities': block.activity_events.select_related('actor')[:20],
         'recurrence_form': (
             RecurrenceForm(instance=block.recurrence_series, user=request.user)
@@ -157,11 +161,11 @@ def _card_detail_context(request, block, form=None):
     }
 
 
-def _render_card_detail_response(request, block, form=None):
+def _render_card_detail_response(request, block, form=None, checklist_form=None):
     """Return the detail panel plus an OOB refresh of the shared grid."""
     detail_html = render_to_string(
         'planner/partials/card_detail_panel.html',
-        _card_detail_context(request, block, form),
+        _card_detail_context(request, block, form, checklist_form),
         request=request,
     )
     settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
@@ -194,6 +198,64 @@ class CardDetailView(LoginRequiredMixin, View):
             'planner/partials/card_detail_panel.html',
             _card_detail_context(request, block),
         )
+
+
+class ChecklistAddView(LoginRequiredMixin, View):
+    """Add one checklist item to an ownership-scoped card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = ChecklistItemForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block, checklist_form=form)
+        item = form.save(commit=False)
+        item.time_block = block
+        item.position = block.checklist_items.count()
+        item.save()
+        record_activity(block, request.user, 'checklist_item_added', {'text': item.text})
+        return _render_card_detail_response(request, block)
+
+
+class ChecklistToggleView(LoginRequiredMixin, View):
+    """Toggle completion on one ownership-scoped checklist item."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        item.is_completed = not item.is_completed
+        item.save(update_fields=['is_completed'])
+        record_activity(
+            item.time_block,
+            request.user,
+            'checklist_item_toggled',
+            {'item_id': item.pk, 'completed': item.is_completed},
+        )
+        return _render_card_detail_response(request, item.time_block)
+
+
+class ChecklistDeleteView(LoginRequiredMixin, View):
+    """Delete one ownership-scoped checklist item."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        block = item.time_block
+        text = item.text
+        item.delete()
+        record_activity(block, request.user, 'checklist_item_deleted', {'text': text})
+        return _render_card_detail_response(request, block)
 
 
 class CardDetailUpdateView(LoginRequiredMixin, UpdateView):
