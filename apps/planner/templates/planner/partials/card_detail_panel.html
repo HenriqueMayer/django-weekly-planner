@@ -39,6 +39,16 @@
                             </button>
                         </form>
                         <span class="min-w-0 flex-1 text-sm {% if item.is_completed %}text-slate-400 line-through dark:text-neutral-500{% else %}text-slate-700 dark:text-neutral-200{% endif %}">{{ item.text }}</span>
+                        <details>
+                            <summary class="cursor-pointer text-xs text-slate-400 hover:text-indigo-600 dark:text-neutral-500 dark:hover:text-indigo-300">Edit</summary>
+                            <form class="absolute right-6 mt-1 z-10 flex w-64 gap-1 rounded-lg bg-white p-2 shadow ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-slate-700" method="post" action="{% url 'planner:checklist-update' block.pk item.pk %}" hx-post="{% url 'planner:checklist-update' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                                {% csrf_token %}<input type="text" name="text" value="{{ item.text }}" maxlength="300" required aria-label="Edit {{ item.text }}" class="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-[#313335] dark:text-neutral-100"><button type="submit" class="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white">Save</button>
+                            </form>
+                        </details>
+                        <div class="flex gap-1">
+                            {% if not forloop.first %}<form method="post" action="{% url 'planner:checklist-move' block.pk item.pk %}" hx-post="{% url 'planner:checklist-move' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">{% csrf_token %}<input type="hidden" name="direction" value="up"><button type="submit" aria-label="Move {{ item.text }} up" class="text-xs text-slate-400 hover:text-indigo-600">&#9650;</button></form>{% endif %}
+                            {% if not forloop.last %}<form method="post" action="{% url 'planner:checklist-move' block.pk item.pk %}" hx-post="{% url 'planner:checklist-move' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">{% csrf_token %}<input type="hidden" name="direction" value="down"><button type="submit" aria-label="Move {{ item.text }} down" class="text-xs text-slate-400 hover:text-indigo-600">&#9660;</button></form>{% endif %}
+                        </div>
                         <form method="post" action="{% url 'planner:checklist-delete' block.pk item.pk %}" hx-post="{% url 'planner:checklist-delete' block.pk item.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
                             {% csrf_token %}<button type="submit" aria-label="Delete {{ item.text }}" class="text-slate-400 hover:text-rose-600 dark:text-neutral-500 dark:hover:text-rose-300">&times;</button>
                         </form>

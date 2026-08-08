@@ -13,7 +13,9 @@ from apps.planner.views import (
     CellCancelView,
     ChecklistAddView,
     ChecklistDeleteView,
+    ChecklistMoveView,
     ChecklistToggleView,
+    ChecklistUpdateView,
     ColorCancelView,
     ColorCreateView,
     ColorDeleteView,
@@ -54,6 +56,16 @@ urlpatterns = [
         'blocks/<int:pk>/checklist/<int:item_pk>/delete/',
         ChecklistDeleteView.as_view(),
         name='checklist-delete',
+    ),
+    path(
+        'blocks/<int:pk>/checklist/<int:item_pk>/edit/',
+        ChecklistUpdateView.as_view(),
+        name='checklist-update',
+    ),
+    path(
+        'blocks/<int:pk>/checklist/<int:item_pk>/move/',
+        ChecklistMoveView.as_view(),
+        name='checklist-move',
     ),
     path(
         'blocks/<int:pk>/recurrence/update/',

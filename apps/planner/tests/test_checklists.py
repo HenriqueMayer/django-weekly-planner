@@ -73,3 +73,30 @@ class ChecklistViewTests(TestCase):
         self.assertEqual(response.status_code, 404)
         item.refresh_from_db()
         self.assertFalse(item.is_completed)
+
+    def test_update_and_move_items(self):
+        first = ChecklistItem.objects.create(time_block=self.block, text='First', position=0)
+        second = ChecklistItem.objects.create(time_block=self.block, text='Second', position=1)
+
+        response = self.client.post(
+            reverse('planner:checklist-update', args=[self.block.pk, first.pk]),
+            {'text': 'Renamed'},
+        )
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        self.assertEqual(first.text, 'Renamed')
+
+        response = self.client.post(
+            reverse('planner:checklist-move', args=[self.block.pk, second.pk]),
+            {'direction': 'up'},
+        )
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertLess(second.position, first.position)
+        self.assertTrue(
+            ActivityEvent.objects.filter(
+                time_block=self.block,
+                event_type='checklist_item_moved',
+            ).exists()
+        )

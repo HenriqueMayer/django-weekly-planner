@@ -258,6 +258,61 @@ class ChecklistDeleteView(LoginRequiredMixin, View):
         return _render_card_detail_response(request, block)
 
 
+class ChecklistUpdateView(LoginRequiredMixin, View):
+    """Edit one ownership-scoped checklist item."""
+
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        form = ChecklistItemForm(request.POST, instance=item)
+        if not form.is_valid():
+            return _render_card_detail_response(request, item.time_block)
+        form.save()
+        record_activity(
+            item.time_block,
+            request.user,
+            'checklist_item_updated',
+            {'item_id': item.pk},
+        )
+        return _render_card_detail_response(request, item.time_block)
+
+
+class ChecklistMoveView(LoginRequiredMixin, View):
+    """Move one checklist item one position up or down."""
+
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        direction = request.POST.get('direction')
+        items = list(item.time_block.checklist_items.order_by('position', 'created_at', 'pk'))
+        index = items.index(item)
+        target_index = index - 1 if direction == 'up' else index + 1
+        if direction not in ('up', 'down') or not 0 <= target_index < len(items):
+            return _render_card_detail_response(request, item.time_block)
+        other = items[target_index]
+        item.position, other.position = other.position, item.position
+        item.save(update_fields=['position'])
+        other.save(update_fields=['position'])
+        record_activity(
+            item.time_block,
+            request.user,
+            'checklist_item_moved',
+            {'item_id': item.pk, 'direction': direction},
+        )
+        return _render_card_detail_response(request, item.time_block)
+
+
 class CardDetailUpdateView(LoginRequiredMixin, UpdateView):
     """Update card properties and record a single activity transaction."""
 

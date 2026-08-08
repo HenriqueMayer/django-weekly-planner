@@ -59,6 +59,8 @@ class AuthProtectionTests(TestCase):
         ('planner:checklist-add', 'post', {'pk': 999999}),
         ('planner:checklist-toggle', 'post', {'pk': 999999, 'item_pk': 999999}),
         ('planner:checklist-delete', 'post', {'pk': 999999, 'item_pk': 999999}),
+        ('planner:checklist-update', 'post', {'pk': 999999, 'item_pk': 999999}),
+        ('planner:checklist-move', 'post', {'pk': 999999, 'item_pk': 999999}),
         ('planner:cell-cancel', 'get', {}),
         ('planner:palette', 'get', {}),
         ('planner:color-create', 'get', {}),

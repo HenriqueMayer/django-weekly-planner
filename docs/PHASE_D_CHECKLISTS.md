@@ -7,6 +7,8 @@
 - Added ordered `ChecklistItem` rows owned through `TimeBlock`.
 - Added checklist display inside the card detail panel.
 - Added HTMX item creation, completion toggle, and deletion.
+- Added item text editing.
+- Added accessible up/down reordering controls.
 - Added ownership-scoped endpoints for every checklist mutation.
 - Added activity events for item creation, completion changes, and deletion.
 - Registered checklist items in Django admin.
@@ -21,13 +23,13 @@
 
 ## Deliberate scope boundary
 
-Drag reordering, nested checklist items, and checklist editing are reserved for
-a later interaction pass. The current ordered model supports reordering without
-changing the card or recurrence data model.
+Drag-and-drop reordering and nested checklist items are reserved for a later
+interaction pass. The current ordered model supports future drag behavior
+without changing the card or recurrence data model.
 
 ## Verification
 
-- Full Django test suite: 125 tests.
+- Full Django test suite: 126 tests.
 - `python manage.py check`.
 - `python manage.py makemigrations --check --dry-run`.
 - `ruff check apps static`.
