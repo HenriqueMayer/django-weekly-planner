@@ -9,6 +9,7 @@ from django.contrib import admin
 from apps.planner.models import (
     ActivityEvent,
     BlockColor,
+    CardComment,
     ChecklistItem,
     PlannerSettings,
     RecurrenceException,
@@ -31,3 +32,4 @@ admin.site.register(ActivityEvent)
 admin.site.register(RecurrenceSeries)
 admin.site.register(RecurrenceException)
 admin.site.register(ChecklistItem)
+admin.site.register(CardComment)

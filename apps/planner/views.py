@@ -54,6 +54,7 @@ from apps.planner.dates import (
 from apps.planner.export import build_svg_export, render_week_markdown
 from apps.planner.forms import (
     BlockColorForm,
+    CardCommentForm,
     CardDetailForm,
     ChecklistItemForm,
     PlannerSettingsForm,
@@ -151,6 +152,8 @@ def _card_detail_context(request, block, form=None, checklist_form=None):
         'detail_form': form or CardDetailForm(instance=block),
         'checklist_form': checklist_form or ChecklistItemForm(),
         'checklist_items': block.checklist_items.all(),
+        'comment_form': CardCommentForm(),
+        'comments': block.comments.select_related('author').all(),
         'activities': block.activity_events.select_related('actor')[:20],
         'recurrence_form': (
             RecurrenceForm(instance=block.recurrence_series, user=request.user)
@@ -213,6 +216,27 @@ class ChecklistAddView(LoginRequiredMixin, View):
         item.position = block.checklist_items.count()
         item.save()
         record_activity(block, request.user, 'checklist_item_added', {'text': item.text})
+        return _render_card_detail_response(request, block)
+
+
+class CommentAddView(LoginRequiredMixin, View):
+    """Add an authored comment to an ownership-scoped card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardCommentForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        comment = form.save(commit=False)
+        comment.time_block = block
+        comment.author = request.user
+        comment.save()
+        record_activity(
+            block,
+            request.user,
+            'comment_added',
+            {'comment_id': comment.pk},
+        )
         return _render_card_detail_response(request, block)
 
 

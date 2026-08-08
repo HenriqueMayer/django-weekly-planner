@@ -410,3 +410,25 @@ class ChecklistItem(TimestampedModel):
 
     def __str__(self):
         return self.text
+
+
+class CardComment(TimestampedModel):
+    """An authored comment attached to one ownership-scoped planner card."""
+
+    time_block = models.ForeignKey(
+        TimeBlock,
+        on_delete=models.CASCADE,
+        related_name='comments',
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='planner_comments',
+    )
+    body = models.TextField(max_length=2000)
+
+    class Meta:
+        ordering = ('created_at', 'pk')
+
+    def __str__(self):
+        return f'Comment on {self.time_block}'

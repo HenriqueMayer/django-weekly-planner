@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from apps.planner.dates import normalize_week_start
 from apps.planner.models import (
     BlockColor,
+    CardComment,
     ChecklistItem,
     PlannerSettings,
     RecurrenceSeries,
@@ -207,6 +208,15 @@ class ChecklistItemForm(forms.ModelForm):
     class Meta:
         model = ChecklistItem
         fields = ['text']
+
+
+class CardCommentForm(forms.ModelForm):
+    """Create one comment without exposing author or card ownership fields."""
+
+    class Meta:
+        model = CardComment
+        fields = ['body']
+        widgets = {'body': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Add a comment'})}
 
 
 class BlockColorForm(forms.ModelForm):

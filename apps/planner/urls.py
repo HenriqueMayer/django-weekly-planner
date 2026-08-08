@@ -20,6 +20,7 @@ from apps.planner.views import (
     ColorCreateView,
     ColorDeleteView,
     ColorUpdateView,
+    CommentAddView,
     ExportMarkdownView,
     ExportSVGView,
     GridView,
@@ -47,6 +48,7 @@ urlpatterns = [
         name='card-detail-update',
     ),
     path('blocks/<int:pk>/checklist/add/', ChecklistAddView.as_view(), name='checklist-add'),
+    path('blocks/<int:pk>/comments/add/', CommentAddView.as_view(), name='comment-add'),
     path(
         'blocks/<int:pk>/checklist/<int:item_pk>/toggle/',
         ChecklistToggleView.as_view(),

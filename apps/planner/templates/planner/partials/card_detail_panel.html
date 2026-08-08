@@ -108,6 +108,25 @@
             </section>
         {% endif %}
 
+        <section class="mt-8 border-t border-slate-200 pt-6 dark:border-slate-700" aria-labelledby="comments-title">
+            <h3 id="comments-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Comments</h3>
+            <ol class="mt-3 space-y-3">
+                {% for comment in comments %}
+                    <li class="rounded-lg bg-slate-50 p-3 dark:bg-[#292b2d]">
+                        <p class="whitespace-pre-wrap text-sm text-slate-700 dark:text-neutral-200">{{ comment.body }}</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-neutral-400">{{ comment.author.username }} · {{ comment.created_at|date:'j M Y, H:i' }}</p>
+                    </li>
+                {% empty %}
+                    <li class="text-sm text-slate-500 dark:text-neutral-400">No comments yet.</li>
+                {% endfor %}
+            </ol>
+            <form class="mt-3 space-y-2" method="post" action="{% url 'planner:comment-add' block.pk %}" hx-post="{% url 'planner:comment-add' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                {% csrf_token %}
+                {% include 'partials/form_field.html' with field=comment_form.body %}
+                <button type="submit" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">Add comment</button>
+            </form>
+        </section>
+
         <section class="mt-8" aria-labelledby="card-activity-title">
             <h3 id="card-activity-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Activity</h3>
             <ol class="mt-3 space-y-3 border-l border-slate-200 pl-4 dark:border-slate-700">
