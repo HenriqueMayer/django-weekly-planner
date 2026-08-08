@@ -2,7 +2,7 @@
 
 A date-aware weekly planner built with Django, HTMX, Tailwind CSS, and vanilla JavaScript. It combines a time-blocking grid with Trello-style card details while remaining server-rendered and dependency-lean.
 
-![Routine Organizer landing page](assets/ForTheReadme/MainPageLight.png)
+![Routine Organizer landing page](assets/MainPageLight.png)
 
 ## Features
 
