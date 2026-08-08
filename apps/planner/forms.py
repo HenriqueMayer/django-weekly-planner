@@ -172,15 +172,24 @@ class RecurrenceForm(forms.ModelForm):
 
     class Meta:
         model = RecurrenceSeries
-        fields = ['weekdays', 'ends_on']
+        fields = [
+            'label', 'description', 'status', 'start_time', 'end_time', 'color',
+            'weekdays', 'ends_on',
+        ]
         widgets = {
+            'description': forms.Textarea(attrs={'rows': 3}),
+            'start_time': forms.TimeInput(attrs={'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'type': 'time'}),
             'ends_on': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'color': forms.Select,
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.initial['weekdays'] = [str(day) for day in self.instance.weekdays]
+        if user is not None:
+            self.fields['color'].queryset = BlockColor.objects.filter(user=user)
         for field in self.fields.values():
             field.widget.attrs.update({'class': INPUT_CLASSES})
 

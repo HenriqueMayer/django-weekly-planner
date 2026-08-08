@@ -39,6 +39,14 @@
                 </div>
                 <form class="mt-3 space-y-3" method="post" action="{% url 'planner:recurrence-update' block.pk %}" hx-post="{% url 'planner:recurrence-update' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
                     {% csrf_token %}<input type="hidden" name="week" value="{{ selected_week_value }}">
+                    {% include 'partials/form_field.html' with field=recurrence_form.label %}
+                    {% include 'partials/form_field.html' with field=recurrence_form.description %}
+                    {% include 'partials/form_field.html' with field=recurrence_form.status %}
+                    <div class="grid grid-cols-2 gap-2">
+                        {% include 'partials/form_field.html' with field=recurrence_form.start_time %}
+                        {% include 'partials/form_field.html' with field=recurrence_form.end_time %}
+                    </div>
+                    {% include 'partials/form_field.html' with field=recurrence_form.color %}
                     {% include 'partials/form_field.html' with field=recurrence_form.ends_on %}
                     <span class="block text-sm font-medium text-slate-700 dark:text-neutral-300">{{ recurrence_form.weekdays.label }}</span>
                     <div class="flex flex-wrap gap-1.5 text-xs">

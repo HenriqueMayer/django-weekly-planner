@@ -145,7 +145,7 @@ def _card_detail_context(request, block, form=None):
         'detail_form': form or CardDetailForm(instance=block),
         'activities': block.activity_events.select_related('actor')[:20],
         'recurrence_form': (
-            RecurrenceForm(instance=block.recurrence_series)
+            RecurrenceForm(instance=block.recurrence_series, user=request.user)
             if block.recurrence_series_id else None
         ),
         'selected_week_start': week_start,
@@ -261,13 +261,15 @@ class RecurrenceUpdateView(LoginRequiredMixin, UpdateView):
         series = block.recurrence_series
         if series is None:
             return HttpResponseBadRequest('This card is not recurring.')
-        form = self.form_class(request.POST, instance=series)
+        form = self.form_class(request.POST, instance=series, user=request.user)
         if not form.is_valid():
             return _render_card_detail_response(request, block, form=form)
         form.save()
         update_weekly_series(series)
-        record_activity(block, request.user, 'recurrence_updated', {'series_id': series.pk})
-        return _render_card_detail_response(request, block)
+        replacement = series.occurrences.order_by('scheduled_date', 'pk').first()
+        target = replacement or block
+        record_activity(target, request.user, 'recurrence_updated', {'series_id': series.pk})
+        return _render_card_detail_response(request, target)
 
 
 class OccurrenceSkipView(LoginRequiredMixin, View):

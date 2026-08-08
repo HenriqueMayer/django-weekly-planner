@@ -115,6 +115,28 @@ class RecurrenceSeriesTests(TestCase):
             [date(2026, 8, 3), date(2026, 8, 12), date(2026, 8, 19)],
         )
 
+    def test_future_occurrences_use_updated_series_properties(self):
+        series = create_weekly_series(
+            user=self.user,
+            label='Old label',
+            start_time=time(9),
+            end_time=time(10),
+            starts_on=date(2026, 8, 3),
+            weekdays=[0],
+            ends_on=date(2026, 8, 17),
+        )
+        series.label = 'New label'
+        series.start_time = time(11)
+        series.end_time = time(12)
+        series.save()
+        update_weekly_series(series, effective_from=date(2026, 8, 10))
+
+        historical = series.occurrences.get(scheduled_date=date(2026, 8, 3))
+        future = series.occurrences.get(scheduled_date=date(2026, 8, 10))
+        self.assertEqual(historical.label, 'Old label')
+        self.assertEqual(future.label, 'New label')
+        self.assertEqual(future.start_time, time(11))
+
 
 class RecurrenceCreateViewTests(TestCase):
     def setUp(self):
@@ -177,3 +199,38 @@ class RecurrenceCreateViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_recurrence_update_applies_properties_to_future_occurrences(self):
+        series = create_weekly_series(
+            user=self.user,
+            label='Old label',
+            start_time=time(9),
+            end_time=time(10),
+            starts_on=date(2026, 8, 3),
+            weekdays=[0],
+            ends_on=date(2026, 8, 17),
+        )
+        occurrence = series.occurrences.first()
+
+        response = self.client.post(
+            reverse('planner:recurrence-update', args=[occurrence.pk]),
+            {
+                'label': 'New label',
+                'description': 'Updated description',
+                'status': 'in_progress',
+                'start_time': '11:00',
+                'end_time': '12:00',
+                'color': '',
+                'weekdays': ['0'],
+                'ends_on': '2026-08-17',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            TimeBlock.objects.get(scheduled_date=date(2026, 8, 3)).label,
+            'Old label',
+        )
+        future = TimeBlock.objects.get(scheduled_date=date(2026, 8, 10))
+        self.assertEqual(future.label, 'New label')
+        self.assertEqual(future.start_time, time(11))
