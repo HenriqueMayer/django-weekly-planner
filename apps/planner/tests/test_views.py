@@ -55,6 +55,7 @@ class AuthProtectionTests(TestCase):
         ('planner:card-detail-update', 'post', {'pk': 999999}),
         ('planner:recurrence-update', 'post', {'pk': 999999}),
         ('planner:occurrence-skip', 'post', {'pk': 999999}),
+        ('planner:occurrence-restore', 'post', {'pk': 999999}),
         ('planner:cell-cancel', 'get', {}),
         ('planner:palette', 'get', {}),
         ('planner:color-create', 'get', {}),

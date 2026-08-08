@@ -137,6 +137,28 @@ class RecurrenceSeriesTests(TestCase):
         self.assertEqual(future.label, 'New label')
         self.assertEqual(future.start_time, time(11))
 
+    def test_bulk_update_preserves_an_overridden_future_occurrence(self):
+        series = create_weekly_series(
+            user=self.user,
+            label='Series label',
+            start_time=time(9),
+            end_time=time(10),
+            starts_on=date(2026, 8, 3),
+            weekdays=[0],
+            ends_on=date(2026, 8, 17),
+        )
+        overridden = series.occurrences.get(scheduled_date=date(2026, 8, 10))
+        overridden.label = 'Personal label'
+        overridden.overridden = True
+        overridden.save()
+        series.label = 'Updated series label'
+        series.save()
+        update_weekly_series(series, effective_from=date(2026, 8, 10))
+
+        overridden.refresh_from_db()
+        self.assertEqual(overridden.label, 'Personal label')
+        self.assertTrue(overridden.overridden)
+
 
 class RecurrenceCreateViewTests(TestCase):
     def setUp(self):
@@ -179,6 +201,14 @@ class RecurrenceCreateViewTests(TestCase):
         self.assertTrue(occurrence.skipped)
         self.assertTrue(series.exceptions.filter(occurrence_date=date(2026, 8, 10)).exists())
         self.assertTrue(occurrence.activity_events.filter(event_type='occurrence_skipped').exists())
+
+        response = self.client.post(reverse('planner:occurrence-restore', args=[occurrence.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        occurrence.refresh_from_db()
+        self.assertFalse(occurrence.skipped)
+        self.assertFalse(series.exceptions.filter(occurrence_date=date(2026, 8, 10)).exists())
+        self.assertTrue(occurrence.activity_events.filter(event_type='occurrence_restored').exists())
 
     def test_recurrence_update_is_ownership_scoped(self):
         other = User.objects.create_user(username='bob', password='pass12345')

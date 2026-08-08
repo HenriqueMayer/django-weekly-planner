@@ -257,6 +257,7 @@ class TimeBlock(TimestampedModel):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANNED)
     due_at = models.DateTimeField(null=True, blank=True)
     skipped = models.BooleanField(default=False)
+    overridden = models.BooleanField(default=False)
     recurrence_series = models.ForeignKey(
         RecurrenceSeries,
         on_delete=models.CASCADE,

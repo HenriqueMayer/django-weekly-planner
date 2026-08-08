@@ -34,9 +34,18 @@
                             <button type="submit" class="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-500/10">Skip this occurrence</button>
                         </form>
                     {% else %}
-                        <span class="text-xs font-medium text-rose-600 dark:text-rose-300">Skipped</span>
+                        <form method="post" action="{% url 'planner:occurrence-restore' block.pk %}" hx-post="{% url 'planner:occurrence-restore' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                            {% csrf_token %}<input type="hidden" name="week" value="{{ selected_week_value }}">
+                            <button type="submit" class="rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10">Restore occurrence</button>
+                        </form>
                     {% endif %}
                 </div>
+                {% if block.overridden and not block.skipped %}
+                    <form class="mt-3" method="post" action="{% url 'planner:occurrence-restore' block.pk %}" hx-post="{% url 'planner:occurrence-restore' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                        {% csrf_token %}<input type="hidden" name="week" value="{{ selected_week_value }}">
+                        <button type="submit" class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-300">Restore this occurrence to the series rule</button>
+                    </form>
+                {% endif %}
                 <form class="mt-3 space-y-3" method="post" action="{% url 'planner:recurrence-update' block.pk %}" hx-post="{% url 'planner:recurrence-update' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
                     {% csrf_token %}<input type="hidden" name="week" value="{{ selected_week_value }}">
                     {% include 'partials/form_field.html' with field=recurrence_form.label %}

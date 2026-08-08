@@ -17,6 +17,8 @@
   and end date to future non-skipped occurrences.
 - Added a per-occurrence skip action that persists an exception and hides the
   occurrence from the grid without deleting its activity history.
+- Added explicit per-occurrence overrides that survive later series edits.
+- Added restore actions for skipped and overridden occurrences.
 - Added overlap-tolerant materialization: a conflicting occurrence is skipped,
   while later dates in the same series are still created.
 - Registered recurrence models in Django admin.
@@ -33,13 +35,13 @@
 
 ## Deliberate scope boundary
 
-Editing an individual generated occurrence independently from its series is
-reserved for a later override pass. Current rule edits intentionally rebuild
-future non-skipped occurrences from the series definition.
+Individual generated occurrence edits are marked as overrides and are kept
+when the series rule is later rebuilt. The panel can restore an override to the
+current series values.
 
 ## Verification
 
-- Full Django test suite: 121 tests.
+- Full Django test suite: 122 tests.
 - `python manage.py check`.
 - `python manage.py makemigrations --check --dry-run`.
 - `ruff check apps static`.

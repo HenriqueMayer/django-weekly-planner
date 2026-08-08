@@ -67,7 +67,11 @@ from apps.planner.models import (
     minutes_since_midnight,
     time_from_minutes,
 )
-from apps.planner.recurrence import create_weekly_series, update_weekly_series
+from apps.planner.recurrence import (
+    create_weekly_series,
+    restore_occurrence,
+    update_weekly_series,
+)
 from apps.planner.services import record_activity
 
 
@@ -237,6 +241,9 @@ class CardDetailUpdateView(LoginRequiredMixin, UpdateView):
             )
         }
         if changed:
+            if self.object.recurrence_series_id:
+                self.object.overridden = True
+                self.object.save(update_fields=['overridden'])
             record_activity(
                 self.object,
                 self.request.user,
@@ -295,6 +302,25 @@ class OccurrenceSkipView(LoginRequiredMixin, View):
             'occurrence_skipped',
             {'date': block.scheduled_date.isoformat()},
         )
+        return _render_card_detail_response(request, block)
+
+
+class OccurrenceRestoreView(LoginRequiredMixin, View):
+    """Restore one occurrence's rule values and remove its exception."""
+
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(
+            TimeBlock.objects.select_related('recurrence_series'),
+            pk=kwargs['pk'],
+            user=request.user,
+        )
+        if block.recurrence_series_id is None:
+            return HttpResponseBadRequest('This card is not a recurring occurrence.')
+        restore_occurrence(block)
+        record_activity(block, request.user, 'occurrence_restored', {})
         return _render_card_detail_response(request, block)
 
 
@@ -597,6 +623,8 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
             )
 
         self.object.end_time = time_from_minutes(new_end_minutes)
+        if self.object.recurrence_series_id:
+            self.object.overridden = True
 
         try:
             self.object.save()
@@ -611,6 +639,9 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         changed_fields = list(form.changed_data)
         self.object = form.save()
+        if self.object.recurrence_series_id:
+            self.object.overridden = True
+            self.object.save(update_fields=['overridden'])
         if changed_fields:
             record_activity(
                 self.object,
@@ -692,6 +723,8 @@ class BlockResizeView(LoginRequiredMixin, View):
 
         block.start_time = time_from_minutes(clamped_start)
         block.end_time = time_from_minutes(clamped_end)
+        if block.recurrence_series_id:
+            block.overridden = True
         try:
             block.save()
         except ValidationError as exc:

@@ -84,5 +84,25 @@ def update_weekly_series(series, effective_from=None):
     series.occurrences.filter(
         scheduled_date__gte=effective_from,
         skipped=False,
+        overridden=False,
     ).delete()
     return materialize_series(series, from_date=effective_from)
+
+
+@transaction.atomic
+def restore_occurrence(block):
+    """Restore one occurrence's properties from its current series rule."""
+    series = block.recurrence_series
+    if series is None:
+        return block
+    block.label = series.label
+    block.description = series.description
+    block.status = series.status
+    block.start_time = series.start_time
+    block.end_time = series.end_time
+    block.color = series.color
+    block.skipped = False
+    block.overridden = False
+    series.exceptions.filter(occurrence_date=block.scheduled_date).delete()
+    block.save()
+    return block
