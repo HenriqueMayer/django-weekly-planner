@@ -10,6 +10,7 @@
 - Added ownership-scoped comment access through the card owner.
 - Added `comment_added` activity events.
 - Added author-only comment editing and deletion.
+- Added one-level threaded replies with per-reply authorship.
 - Registered comments in Django admin.
 
 ## Rules
@@ -21,11 +22,12 @@
 
 ## Deliberate scope boundary
 
-Mentions and threaded replies are reserved for a later collaboration pass.
+Mentions and deeper-than-one-level threading are reserved for a later
+collaboration pass.
 
 ## Verification
 
-- Full Django test suite: 130 tests.
+- Full Django test suite: 131 tests.
 - `python manage.py check`.
 - `python manage.py makemigrations --check --dry-run`.
 - `ruff check apps static`.

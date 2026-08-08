@@ -64,6 +64,7 @@ class AuthProtectionTests(TestCase):
         ('planner:comment-add', 'post', {'pk': 999999}),
         ('planner:comment-update', 'post', {'pk': 999999, 'comment_pk': 999999}),
         ('planner:comment-delete', 'post', {'pk': 999999, 'comment_pk': 999999}),
+        ('planner:comment-reply', 'post', {'pk': 999999, 'comment_pk': 999999}),
         ('planner:cell-cancel', 'get', {}),
         ('planner:palette', 'get', {}),
         ('planner:color-create', 'get', {}),

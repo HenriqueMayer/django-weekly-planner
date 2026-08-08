@@ -37,7 +37,7 @@ from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
@@ -154,7 +154,13 @@ def _card_detail_context(request, block, form=None, checklist_form=None):
         'checklist_form': checklist_form or ChecklistItemForm(),
         'checklist_items': block.checklist_items.all(),
         'comment_form': CardCommentForm(),
-        'comments': block.comments.select_related('author').all(),
+        'comments': (
+            block.comments.filter(parent__isnull=True)
+            .select_related('author')
+            .prefetch_related(
+            Prefetch('replies', queryset=CardComment.objects.select_related('author')),
+            )
+        ),
         'activities': block.activity_events.select_related('actor')[:20],
         'recurrence_form': (
             RecurrenceForm(instance=block.recurrence_series, user=request.user)
@@ -239,6 +245,34 @@ class CommentAddView(LoginRequiredMixin, View):
             {'comment_id': comment.pk},
         )
         return _render_card_detail_response(request, block)
+
+
+class CommentReplyView(LoginRequiredMixin, View):
+    """Add one reply to a top-level comment on an owned card."""
+
+    def post(self, request, *args, **kwargs):
+        parent = get_object_or_404(
+            CardComment,
+            pk=kwargs['comment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+            parent__isnull=True,
+        )
+        form = CardCommentForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, parent.time_block)
+        reply = form.save(commit=False)
+        reply.time_block = parent.time_block
+        reply.author = request.user
+        reply.parent = parent
+        reply.save()
+        record_activity(
+            parent.time_block,
+            request.user,
+            'comment_replied',
+            {'comment_id': parent.pk, 'reply_id': reply.pk},
+        )
+        return _render_card_detail_response(request, parent.time_block)
 
 
 class CommentUpdateView(LoginRequiredMixin, View):

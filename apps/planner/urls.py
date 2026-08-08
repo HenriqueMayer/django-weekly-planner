@@ -22,6 +22,7 @@ from apps.planner.views import (
     ColorUpdateView,
     CommentAddView,
     CommentDeleteView,
+    CommentReplyView,
     CommentUpdateView,
     ExportMarkdownView,
     ExportSVGView,
@@ -51,6 +52,11 @@ urlpatterns = [
     ),
     path('blocks/<int:pk>/checklist/add/', ChecklistAddView.as_view(), name='checklist-add'),
     path('blocks/<int:pk>/comments/add/', CommentAddView.as_view(), name='comment-add'),
+    path(
+        'blocks/<int:pk>/comments/<int:comment_pk>/reply/',
+        CommentReplyView.as_view(),
+        name='comment-reply',
+    ),
     path(
         'blocks/<int:pk>/comments/<int:comment_pk>/edit/',
         CommentUpdateView.as_view(),

@@ -425,6 +425,13 @@ class CardComment(TimestampedModel):
         on_delete=models.CASCADE,
         related_name='planner_comments',
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies',
+    )
     body = models.TextField(max_length=2000)
 
     class Meta:

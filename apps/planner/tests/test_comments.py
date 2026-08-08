@@ -88,3 +88,26 @@ class CommentViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
         self.assertTrue(CardComment.objects.filter(pk=comment.pk).exists())
+
+    def test_user_can_reply_to_top_level_comment(self):
+        comment = CardComment.objects.create(
+            time_block=self.block,
+            author=self.other_user,
+            body='Can someone verify this?',
+        )
+
+        response = self.client.post(
+            reverse('planner:comment-reply', args=[self.block.pk, comment.pk]),
+            {'body': 'I verified it.'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        reply = comment.replies.get()
+        self.assertEqual(reply.author, self.user)
+        self.assertEqual(reply.parent, comment)
+        self.assertTrue(
+            ActivityEvent.objects.filter(
+                time_block=self.block,
+                event_type='comment_replied',
+            ).exists()
+        )
