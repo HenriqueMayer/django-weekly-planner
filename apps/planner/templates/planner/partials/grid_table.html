@@ -120,7 +120,7 @@ responses (`_render_palette_response()`, apps/planner/views.py passes
 existing blocks render, so the grid needs to refresh in the same
 response, not just on a later full page load.
 {% endcomment %}
-<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="overflow-x-auto overflow-y-auto max-h-[85vh] rounded-xl ring-1 ring-slate-200 dark:ring-[#323232] print:max-h-none print:overflow-visible print:ring-0">
+<div id="grid-table" data-slot-interval="{{ week_grid.slot_interval }}" {% if grid_oob %}hx-swap-oob="true"{% endif %} class="planner-grid overflow-auto rounded-xl ring-1 ring-slate-200 dark:ring-[#323232] print:max-h-none print:overflow-visible print:ring-0">
     <table class="w-full min-w-[1000px] table-fixed border-collapse text-xs sm:text-sm">
         <thead>
             <tr>

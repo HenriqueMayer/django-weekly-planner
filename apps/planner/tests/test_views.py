@@ -11,13 +11,13 @@ view.
 
 import re
 import xml.etree.ElementTree as ET
-from datetime import time
+from datetime import date, time
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.planner.models import BlockColor, PlannerSettings, TimeBlock
+from apps.planner.models import ActivityEvent, BlockColor, PlannerSettings, TimeBlock
 
 User = get_user_model()
 
@@ -51,6 +51,28 @@ class AuthProtectionTests(TestCase):
         ('planner:block-delete', 'post', {'pk': 999999}),
         ('planner:block-resize', 'post', {'pk': 999999}),
         ('planner:block-cancel', 'get', {'pk': 999999}),
+        ('planner:card-detail', 'get', {'pk': 999999}),
+        ('planner:card-detail-update', 'post', {'pk': 999999}),
+        ('planner:recurrence-update', 'post', {'pk': 999999}),
+        ('planner:occurrence-skip', 'post', {'pk': 999999}),
+        ('planner:occurrence-restore', 'post', {'pk': 999999}),
+        ('planner:checklist-add', 'post', {'pk': 999999}),
+        ('planner:checklist-toggle', 'post', {'pk': 999999, 'item_pk': 999999}),
+        ('planner:checklist-delete', 'post', {'pk': 999999, 'item_pk': 999999}),
+        ('planner:checklist-update', 'post', {'pk': 999999, 'item_pk': 999999}),
+        ('planner:checklist-move', 'post', {'pk': 999999, 'item_pk': 999999}),
+        ('planner:comment-add', 'post', {'pk': 999999}),
+        ('planner:comment-update', 'post', {'pk': 999999, 'comment_pk': 999999}),
+        ('planner:comment-delete', 'post', {'pk': 999999, 'comment_pk': 999999}),
+        ('planner:comment-reply', 'post', {'pk': 999999, 'comment_pk': 999999}),
+        ('planner:label-add', 'post', {'pk': 999999}),
+        ('planner:label-remove', 'post', {'pk': 999999, 'label_pk': 999999}),
+        ('planner:attachment-add', 'post', {'pk': 999999}),
+        ('planner:attachment-delete', 'post', {'pk': 999999, 'attachment_pk': 999999}),
+        ('planner:card-transfer', 'post', {'pk': 999999}),
+        ('planner:kanban', 'get', {}),
+        ('planner:notifications', 'get', {}),
+        ('planner:notification-read', 'post', {'pk': 999999}),
         ('planner:cell-cancel', 'get', {}),
         ('planner:palette', 'get', {}),
         ('planner:color-create', 'get', {}),
@@ -524,6 +546,142 @@ class SettingsUpdateViewTests(TestCase):
         labels = [row.label for row in grid_after.context['week_grid'].rows]
         self.assertIn('6:00 AM', labels)
         self.assertNotIn('06:00', labels)
+
+
+class WeekNavigationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(self.user)
+
+    def test_dashboard_uses_requested_week_and_iso_label(self):
+        TimeBlock.objects.create(
+            user=self.user,
+            label='Future work',
+            scheduled_date=date(2026, 8, 10),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('core:dashboard'), {'week': '2026-08-12'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['selected_week_start'], date(2026, 8, 10))
+        self.assertIn('Week 33 - 2026', response.content.decode())
+        self.assertIn('Future work', response.content.decode())
+
+    def test_requested_week_does_not_render_other_week_blocks(self):
+        TimeBlock.objects.create(
+            user=self.user,
+            label='Other week',
+            scheduled_date=date(2026, 8, 17),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:grid'), {'week': '2026-08-03'})
+
+        self.assertNotIn('Other week', response.content.decode())
+
+    def test_grid_card_is_a_button_that_opens_the_detail_panel(self):
+        block = TimeBlock.objects.create(
+            user=self.user,
+            label='Clickable work',
+            scheduled_date=date(2026, 8, 3),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+        response = self.client.get(reverse('planner:grid'), {'week': '2026-08-03'})
+        content = response.content.decode()
+
+        self.assertIn(
+            f'hx-get="{reverse("planner:card-detail", args=[block.pk])}?week=2026-08-03"',
+            content,
+        )
+        self.assertIn('hx-target="#card-panel"', content)
+        self.assertIn('<button', content)
+
+    def test_create_preserves_requested_week(self):
+        response = self.client.post(
+            reverse('planner:block-create') + '?week=2026-08-10',
+            {
+                'label': 'Planned later',
+                'day_of_week': 2,
+                'start_time': '09:00',
+                'end_time': '10:00',
+                'week': '2026-08-10',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        block = TimeBlock.objects.get(user=self.user, label='Planned later')
+        self.assertEqual(block.scheduled_date, date(2026, 8, 12))
+
+
+class CardDetailViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='pass12345')
+        self.client.force_login(self.user)
+        self.block = TimeBlock.objects.create(
+            user=self.user,
+            label='Deep work',
+            scheduled_date=date(2026, 8, 3),
+            day_of_week=0,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+        )
+
+    def test_detail_get_is_scoped_and_shows_activity_empty_state(self):
+        response = self.client.get(
+            reverse('planner:card-detail', args=[self.block.pk]),
+            {'week': '2026-08-03'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Card details')
+        self.assertContains(response, 'No activity yet.')
+
+    def test_detail_update_persists_properties_and_records_activity(self):
+        response = self.client.post(
+            reverse('planner:card-detail-update', args=[self.block.pk]),
+            {
+                'week': '2026-08-03',
+                'label': 'Deep work updated',
+                'description': 'Protect this focus block.',
+                'status': 'completed',
+                'due_at': '2026-08-03T17:00',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.block.refresh_from_db()
+        self.assertEqual(self.block.status, TimeBlock.STATUS_COMPLETED)
+        self.assertEqual(self.block.description, 'Protect this focus block.')
+        self.assertEqual(ActivityEvent.objects.filter(time_block=self.block).count(), 1)
+        self.assertEqual(
+            ActivityEvent.objects.get(time_block=self.block).event_type,
+            'card_updated',
+        )
+        self.assertIn('hx-swap-oob="true"', response.content.decode())
+
+    def test_invalid_status_is_rejected_without_activity(self):
+        response = self.client.post(
+            reverse('planner:card-detail-update', args=[self.block.pk]),
+            {
+                'week': '2026-08-03',
+                'label': 'Deep work',
+                'description': '',
+                'status': 'not-a-status',
+                'due_at': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['HX-Retarget'], '#card-panel')
+        self.assertEqual(ActivityEvent.objects.filter(time_block=self.block).count(), 0)
 
 
 class MixedOperationSequenceTests(TestCase):

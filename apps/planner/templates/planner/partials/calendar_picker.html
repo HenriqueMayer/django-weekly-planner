@@ -1,0 +1,15 @@
+<div id="calendar-picker" class="w-72 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-200 dark:bg-[#292b2d] dark:ring-slate-700">
+    <div class="flex items-center justify-between">
+        <a href="?week={{ selected_week_start|date:'Y-m-d' }}&amp;month={{ previous_month|date:'Y-m' }}" aria-label="Previous month" {% if navigation_htmx %}hx-get="?week={{ selected_week_start|date:'Y-m-d' }}&amp;month={{ previous_month|date:'Y-m' }}" hx-target="#calendar-picker" hx-swap="outerHTML"{% endif %} class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-lg text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">&larr;</a>
+        <h2 class="text-sm font-semibold text-slate-900 dark:text-white">{{ calendar_month|date:'F Y' }}</h2>
+        <a href="?week={{ selected_week_start|date:'Y-m-d' }}&amp;month={{ next_month|date:'Y-m' }}" aria-label="Next month" {% if navigation_htmx %}hx-get="?week={{ selected_week_start|date:'Y-m-d' }}&amp;month={{ next_month|date:'Y-m' }}" hx-target="#calendar-picker" hx-swap="outerHTML"{% endif %} class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-lg text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">&rarr;</a>
+    </div>
+    <div class="mt-2 grid grid-cols-7 text-center text-xs">
+        {% for day_name in calendar_day_headers %}<span class="flex aspect-square items-center justify-center font-medium text-slate-400 dark:text-neutral-500">{{ day_name }}</span>{% endfor %}
+        {% for row in calendar_rows %}
+            {% for day in row.days %}
+                <a href="?week={{ day.week_start|date:'Y-m-d' }}" {% if navigation_htmx %}hx-get="?week={{ day.week_start|date:'Y-m-d' }}" hx-target="#planner-surface" hx-swap="outerHTML" hx-push-url="true"{% endif %} class="m-0.5 flex aspect-square items-center justify-center rounded-lg text-sm {% if not day.in_month %}text-slate-300 dark:text-neutral-600{% elif day.is_weekend %}text-slate-500 dark:text-neutral-400{% else %}text-slate-800 dark:text-neutral-100{% endif %} {% if day.is_today %}bg-violet-600 font-bold text-white{% elif day.is_selected %}bg-indigo-100 font-semibold text-indigo-700 ring-1 ring-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-700{% else %}hover:bg-slate-100 dark:hover:bg-[#3a3a3a]{% endif %} focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="{{ day.date|date:'l, j F Y' }}">{{ day.day }}</a>
+            {% endfor %}
+        {% endfor %}
+    </div>
+</div>

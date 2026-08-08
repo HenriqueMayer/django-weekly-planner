@@ -1,0 +1,20 @@
+<div class="relative flex flex-col gap-3 rounded-xl bg-white p-3 ring-1 ring-slate-200 dark:bg-[#313335] dark:ring-[#323232] sm:flex-row sm:items-center sm:justify-between" data-week-navigation>
+    <div class="flex items-center gap-2">
+        <a href="?week={{ selected_week_start|date:'Y-m-d'|default:'' }}" class="sr-only" aria-hidden="true">Current week</a>
+        <a href="?week={{ previous_week|date:'Y-m-d' }}" data-week-previous aria-label="Previous week" {% if navigation_htmx %}hx-get="?week={{ previous_week|date:'Y-m-d' }}" hx-target="#planner-surface" hx-swap="outerHTML" hx-push-url="true"{% endif %} class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">&larr;</a>
+        <a href="?week={{ next_week|date:'Y-m-d' }}" data-week-next aria-label="Next week" {% if navigation_htmx %}hx-get="?week={{ next_week|date:'Y-m-d' }}" hx-target="#planner-surface" hx-swap="outerHTML" hx-push-url="true"{% endif %} class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">&rarr;</a>
+        <a href="?week={{ today_week_start|date:'Y-m-d' }}" data-week-today {% if navigation_htmx %}hx-get="?week={{ today_week_start|date:'Y-m-d' }}" hx-target="#planner-surface" hx-swap="outerHTML" hx-push-url="true"{% endif %} class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">Today</a>
+    </div>
+
+    <div class="text-center sm:flex-1">
+        <p class="text-sm font-semibold text-slate-900 dark:text-neutral-100" aria-live="polite">{{ week_label }}</p>
+        {% if not is_current_week %}<p class="text-xs text-indigo-600 dark:text-indigo-300">Viewing a different week</p>{% endif %}
+    </div>
+
+    <details class="sm:relative" data-calendar-popover>
+        <summary class="inline-flex w-full cursor-pointer list-none items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a] sm:w-auto [&amp;::-webkit-details-marker]:hidden">Calendar</summary>
+        <div class="absolute right-0 top-full z-40 mt-2">
+            {% include 'planner/partials/calendar_picker.html' %}
+        </div>
+    </details>
+</div>

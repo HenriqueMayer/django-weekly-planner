@@ -58,13 +58,21 @@ Sprint 6 additions (htmx-interaction):
     data-end="{{ cell.block.end_time|time:'H:i' }}"
     data-resize-url="{% url 'planner:block-resize' cell.block.pk %}"
 >
-    <div
-        class="block-label h-full cursor-pointer rounded px-1 py-0.5 pr-12 focus:outline-none focus:ring-2 focus:ring-white/70"
-        hx-get="{% url 'planner:block-edit' cell.block.pk %}"
-        hx-target="this"
+    <button
+        type="button"
+        class="block-label block h-full w-full cursor-pointer rounded px-1 py-0.5 pr-12 text-left focus:outline-none focus:ring-2 focus:ring-white/70"
+        hx-get="{% url 'planner:card-detail' cell.block.pk %}?week={{ week_grid.week_start|date:'Y-m-d' }}"
+        hx-target="#card-panel"
         hx-swap="outerHTML"
         hx-trigger="click"
-    >{{ cell.block.label }}</div>
+    >
+        <span class="block truncate">{{ cell.block.label }}</span>
+        <span class="mt-1 inline-flex items-center gap-1 text-[10px]" title="{{ cell.block.get_status_display }}">
+            <span class="h-1.5 w-1.5 rounded-full {% if cell.block.status == 'completed' %}bg-emerald-400{% elif cell.block.status == 'abandoned' %}bg-rose-400{% elif cell.block.status == 'in_progress' %}bg-indigo-300{% else %}bg-white/70{% endif %}" aria-hidden="true"></span>
+            <span class="sr-only">{{ cell.block.get_status_display }}</span>
+        </span>
+        {% if cell.block.due_at %}<span class="mt-1 block truncate text-[10px]" title="Due {{ cell.block.due_at|date:'j M Y, H:i' }}">Due {{ cell.block.due_at|date:'j M' }}</span>{% endif %}
+    </button>
 
     <div class="absolute right-1 top-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         <button

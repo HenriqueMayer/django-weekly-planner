@@ -1,9 +1,24 @@
 """Forms for the planner app (PRD FR-06, FR-07, FR-08, FR-13, §8.2, Sprint 6)."""
 
+from datetime import timedelta
+from pathlib import Path
+
 from django import forms
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
-from apps.planner.models import BlockColor, PlannerSettings, TimeBlock, minutes_since_midnight
+from apps.planner.dates import normalize_week_start
+from apps.planner.models import (
+    BlockColor,
+    CardAttachment,
+    CardComment,
+    CardLabel,
+    ChecklistItem,
+    PlannerSettings,
+    RecurrenceSeries,
+    TimeBlock,
+    minutes_since_midnight,
+)
 
 # Shared input styling from PRD 9.2, mirrored from
 # `apps.accounts.forms.INPUT_CLASSES` so every widget in the project uses
@@ -74,6 +89,22 @@ class TimeBlockForm(forms.ModelForm):
             'block are skipped and reported after saving.'
         ),
     )
+    recurrence_weekly = forms.BooleanField(
+        required=False,
+        label='Repeat weekly',
+        help_text='Create dated occurrences until the selected end date.',
+    )
+    recurrence_weekdays = forms.MultipleChoiceField(
+        choices=TimeBlock.DAY_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label='Weekly days',
+    )
+    recurrence_until = forms.DateField(
+        required=False,
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        label='Repeat until',
+    )
 
     class Meta:
         model = TimeBlock
@@ -84,8 +115,9 @@ class TimeBlockForm(forms.ModelForm):
             'color': forms.RadioSelect,
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, week_start=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.week_start = normalize_week_start(week_start)
         for field_name in ('label', 'day_of_week', 'start_time', 'end_time'):
             self.fields[field_name].widget.attrs.update({'class': INPUT_CLASSES})
         # `color` intentionally keeps its bare `RadioSelect` widget --
@@ -94,6 +126,147 @@ class TimeBlockForm(forms.ModelForm):
         if user is not None:
             self.instance.user = user
             self.fields['color'].queryset = BlockColor.objects.filter(user=user)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        day = cleaned_data.get('day_of_week')
+        if day is not None:
+            self.instance.scheduled_date = self.week_start + timedelta(days=int(day))
+        if cleaned_data.get('recurrence_weekly'):
+            if not cleaned_data.get('recurrence_weekdays'):
+                self.add_error('recurrence_weekdays', 'Choose at least one weekly day.')
+            until = cleaned_data.get('recurrence_until')
+            if until and until < self.week_start:
+                self.add_error(
+                    'recurrence_until',
+                    'Repeat-until date must be on or after this week.',
+                )
+            if not until:
+                self.add_error('recurrence_until', 'Choose an end date for weekly repetition.')
+        return cleaned_data
+
+
+class CardDetailForm(forms.ModelForm):
+    """Edit card properties that do not change its grid geometry."""
+
+    due_at = forms.DateTimeField(
+        required=False,
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+    )
+
+    class Meta:
+        model = TimeBlock
+        fields = ['label', 'description', 'status', 'due_at']
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': INPUT_CLASSES})
+
+
+class RecurrenceForm(forms.ModelForm):
+    """Edit the future schedule of a recurring series."""
+
+    weekdays = forms.MultipleChoiceField(
+        choices=TimeBlock.DAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    class Meta:
+        model = RecurrenceSeries
+        fields = [
+            'label', 'description', 'status', 'start_time', 'end_time', 'color',
+            'weekdays', 'ends_on',
+        ]
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 3}),
+            'start_time': forms.TimeInput(attrs={'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'type': 'time'}),
+            'ends_on': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'color': forms.Select,
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.initial['weekdays'] = [str(day) for day in self.instance.weekdays]
+        if user is not None:
+            self.fields['color'].queryset = BlockColor.objects.filter(user=user)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': INPUT_CLASSES})
+
+    def clean_weekdays(self):
+        weekdays = [int(day) for day in self.cleaned_data['weekdays']]
+        if not weekdays:
+            raise ValidationError('Choose at least one weekly day.')
+        return weekdays
+
+
+class ChecklistItemForm(forms.ModelForm):
+    """Create one checklist item without exposing card ownership fields."""
+
+    class Meta:
+        model = ChecklistItem
+        fields = ['text', 'parent']
+
+    def __init__(self, *args, parent_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['parent'].required = False
+        self.fields['parent'].queryset = parent_queryset or ChecklistItem.objects.none()
+
+
+class CardCommentForm(forms.ModelForm):
+    """Create one comment without exposing author or card ownership fields."""
+
+    class Meta:
+        model = CardComment
+        fields = ['body']
+        widgets = {'body': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Add a comment'})}
+
+
+class CardLabelForm(forms.ModelForm):
+    """Create or associate a user-owned label with a card."""
+
+    class Meta:
+        model = CardLabel
+        fields = ['name', 'hex_code']
+        widgets = {'hex_code': forms.TextInput(attrs={'type': 'color'})}
+
+
+class CardAttachmentForm(forms.ModelForm):
+    """Validate a small, allow-listed card attachment."""
+
+    class Meta:
+        model = CardAttachment
+        fields = ['file']
+        widgets = {
+            'file': forms.ClearableFileInput(
+                attrs={'accept': '.csv,.doc,.docx,.jpg,.jpeg,.md,.pdf,.png,.txt'},
+            ),
+        }
+
+    def clean_file(self):
+        uploaded = self.cleaned_data['file']
+        if uploaded.size > CardAttachment.MAX_SIZE:
+            raise ValidationError('Attachments must be 10 MB or smaller.')
+        if Path(uploaded.name).suffix.lower() not in CardAttachment.ALLOWED_EXTENSIONS:
+            raise ValidationError('This file type is not supported.')
+        return uploaded
+
+
+class CardTransferForm(forms.Form):
+    """Choose an existing user to receive the card."""
+
+    recipient = forms.ModelChoiceField(queryset=get_user_model().objects.none())
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['recipient'].queryset = get_user_model().objects.exclude(pk=user.pk)
+        self.fields['recipient'].label = 'Transfer to'
 
 
 class BlockColorForm(forms.ModelForm):

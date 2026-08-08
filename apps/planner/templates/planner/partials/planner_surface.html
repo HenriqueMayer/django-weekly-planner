@@ -1,0 +1,8 @@
+<section id="planner-surface" class="planner-surface" aria-label="Weekly planner">
+    <div class="mb-4">
+        {% include 'planner/partials/week_navigation.html' %}
+    </div>
+    <div>
+        {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
+    </div>
+</section>

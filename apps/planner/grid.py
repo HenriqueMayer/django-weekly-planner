@@ -75,9 +75,10 @@ to pass an already-evaluated/filtered `TimeBlock` iterable (ideally with
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import time
+from datetime import time, timedelta
 from math import ceil
 
+from apps.planner.dates import normalize_week_start
 from apps.planner.models import (
     TimeBlock,
     format_time_label,
@@ -121,6 +122,8 @@ class WeekGrid:
     rows: list[GridRow]
     slot_interval: int
     time_format: str
+    week_start: object | None = None
+    day_dates: list[object] = field(default_factory=list)
     out_of_range_blocks: list[TimeBlock] = field(default_factory=list)
     unplaced_blocks: list[TimeBlock] = field(default_factory=list)
 
@@ -142,7 +145,7 @@ class _CellState:
         self.clamped = clamped
 
 
-def build_week_grid(planner_settings, blocks):
+def build_week_grid(planner_settings, blocks, week_start=None):
     """Build the full week grid matrix for one user.
 
     Args:
@@ -156,6 +159,7 @@ def build_week_grid(planner_settings, blocks):
     Returns:
         A `WeekGrid` instance. See the module docstring for its shape.
     """
+    week_start = normalize_week_start(week_start)
     interval = planner_settings.slot_interval
     time_format = planner_settings.time_format
 
@@ -178,7 +182,13 @@ def build_week_grid(planner_settings, blocks):
 
     blocks_by_day = defaultdict(list)
     for block in blocks:
-        blocks_by_day[block.day_of_week].append(block)
+        if block.scheduled_date is not None:
+            day = (block.scheduled_date - week_start).days
+            if 0 <= day <= 6:
+                blocks_by_day[day].append(block)
+        elif 0 <= block.day_of_week <= 6:
+            # Compatibility for unsaved legacy objects used by pure grid tests.
+            blocks_by_day[block.day_of_week].append(block)
 
     for day, day_blocks in blocks_by_day.items():
         if not (0 <= day <= 6):
@@ -303,6 +313,8 @@ def build_week_grid(planner_settings, blocks):
         rows=rows,
         slot_interval=interval,
         time_format=time_format,
+        week_start=week_start,
+        day_dates=[week_start + timedelta(days=day) for day in range(7)],
         out_of_range_blocks=out_of_range_blocks,
         unplaced_blocks=unplaced_blocks,
     )

@@ -22,7 +22,7 @@ context (no JS needs to read them) -- they stay for markup
 self-description and as a stable hook for any future JS.
 {% endcomment %}
 <td
-    hx-get="{% url 'planner:block-create' %}?day={{ cell.day }}&start={{ cell.slot_start|time:'H:i' }}&end={{ cell.slot_end|time:'H:i' }}"
+    hx-get="{% url 'planner:block-create' %}?week={{ selected_week_start|date:'Y-m-d' }}&day={{ cell.day }}&start={{ cell.slot_start|time:'H:i' }}&end={{ cell.slot_end|time:'H:i' }}"
     hx-target="this"
     hx-swap="outerHTML"
     hx-trigger="click"

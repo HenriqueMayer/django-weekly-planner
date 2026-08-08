@@ -249,9 +249,8 @@
     `{% for %}` scan across every row/day in this template, which is
     exactly the logic-heavy DTL PRD R2 rules out.
     {% endcomment %}
-    <div class="mt-8">
-        {% include 'planner/partials/grid_table.html' with week_grid=week_grid %}
-    </div>
+    {% include 'planner/partials/planner_surface.html' %}
+    <aside id="card-panel" class="hidden" aria-hidden="true"></aside>
 {% endblock %}
 
 {% block extra_body %}
@@ -282,4 +281,6 @@
     <script src="{% static 'js/color-sync.js' %}"></script>
     <script src="{% static 'js/export.js' %}"></script>
     <script src="{% static 'js/block-form-close.js' %}"></script>
+    <script src="{% static 'js/week-navigation.js' %}"></script>
+    <script src="{% static 'js/card-panel.js' %}"></script>
 {% endblock %}

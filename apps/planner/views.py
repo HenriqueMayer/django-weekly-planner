@@ -31,9 +31,13 @@ The actual toast markup and its `hx-swap-oob` wiring is a later
 variables are always present in context.
 """
 
+from datetime import timedelta
+
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
@@ -41,16 +45,45 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView, UpdateView
 
+from apps.planner.dates import (
+    navigation_context,
+    normalize_week_start,
+    parse_week_start,
+    week_end,
+)
 from apps.planner.export import build_svg_export, render_week_markdown
-from apps.planner.forms import BlockColorForm, PlannerSettingsForm, TimeBlockForm
+from apps.planner.forms import (
+    BlockColorForm,
+    CardAttachmentForm,
+    CardCommentForm,
+    CardDetailForm,
+    CardLabelForm,
+    CardTransferForm,
+    ChecklistItemForm,
+    PlannerSettingsForm,
+    RecurrenceForm,
+    TimeBlockForm,
+)
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
     BlockColor,
+    CardAttachment,
+    CardComment,
+    CardLabel,
+    CardTransfer,
+    ChecklistItem,
+    MentionNotification,
     PlannerSettings,
     TimeBlock,
     minutes_since_midnight,
     time_from_minutes,
 )
+from apps.planner.recurrence import (
+    create_weekly_series,
+    restore_occurrence,
+    update_weekly_series,
+)
+from apps.planner.services import record_activity, record_mentions
 
 
 def _format_validation_error(exc):
@@ -76,6 +109,29 @@ def _day_range_minutes(settings_obj):
     return range_start, range_end
 
 
+def selected_week(request):
+    return parse_week_start(request.POST.get('week') or request.GET.get('week'))
+
+
+def _week_blocks(user, week_start):
+    legacy_blocks = (
+        Q(scheduled_date__isnull=True)
+        if week_start == normalize_week_start()
+        else Q(pk__in=[])
+    )
+    return TimeBlock.objects.filter(
+        user=user,
+    ).filter(
+        Q(scheduled_date__gte=week_start, scheduled_date__lte=week_end(week_start))
+        | legacy_blocks,
+    ).filter(skipped=False).select_related('color')
+
+
+def _navigation_context(request, week_start):
+    month_value = request.GET.get('month') or request.POST.get('month')
+    return navigation_context(week_start, month_value)
+
+
 def _render_grid_response(request, toast_message='', toast_level=''):
     """Re-render the entire grid table fragment for `request.user`.
 
@@ -85,14 +141,559 @@ def _render_grid_response(request, toast_message='', toast_level=''):
     never trusts anything but `request.user` to scope it (NFR-07).
     """
     settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
-    blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
-    week_grid = build_week_grid(settings_obj, blocks)
+    week_start = selected_week(request)
+    blocks = _week_blocks(request.user, week_start)
+    week_grid = build_week_grid(settings_obj, blocks, week_start)
     context = {
         'week_grid': week_grid,
+        **_navigation_context(request, week_start),
         'toast_message': toast_message,
         'toast_level': toast_level,
     }
     return render(request, 'planner/partials/grid_table.html', context)
+
+
+def _card_detail_context(request, block, form=None, checklist_form=None):
+    week_start = selected_week(request)
+    return {
+        'block': block,
+        'detail_form': form or CardDetailForm(instance=block),
+        'checklist_form': checklist_form or ChecklistItemForm(
+            parent_queryset=block.checklist_items.filter(parent__isnull=True),
+        ),
+        'checklist_items': block.checklist_items.all(),
+        'comment_form': CardCommentForm(),
+        'comments': (
+            block.comments.filter(parent__isnull=True)
+            .select_related('author')
+            .prefetch_related(
+            Prefetch('replies', queryset=CardComment.objects.select_related('author')),
+            )
+        ),
+        'card_labels': block.labels.filter(user=request.user),
+        'label_form': CardLabelForm(),
+        'attachment_form': CardAttachmentForm(),
+        'attachments': block.attachments.select_related('uploaded_by'),
+        'transfer_form': CardTransferForm(user=request.user),
+        'activities': block.activity_events.select_related('actor')[:20],
+        'recurrence_form': (
+            RecurrenceForm(instance=block.recurrence_series, user=request.user)
+            if block.recurrence_series_id else None
+        ),
+        'selected_week_start': week_start,
+        'selected_week_value': week_start.isoformat(),
+    }
+
+
+def _render_card_detail_response(request, block, form=None, checklist_form=None):
+    """Return the detail panel plus an OOB refresh of the shared grid."""
+    detail_html = render_to_string(
+        'planner/partials/card_detail_panel.html',
+        _card_detail_context(request, block, form, checklist_form),
+        request=request,
+    )
+    settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
+    week_start = selected_week(request)
+    grid_html = render_to_string(
+        'planner/partials/grid_table.html',
+        {
+            'week_grid': build_week_grid(
+                settings_obj,
+                _week_blocks(request.user, week_start),
+                week_start,
+            ),
+            'grid_oob': True,
+            'toast_message': '',
+            'toast_level': '',
+            **_navigation_context(request, week_start),
+        },
+        request=request,
+    )
+    return HttpResponse(detail_html + grid_html)
+
+
+class CardDetailView(LoginRequiredMixin, View):
+    """Open one ownership-scoped card in the in-page detail panel."""
+
+    def get(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        return render(
+            request,
+            'planner/partials/card_detail_panel.html',
+            _card_detail_context(request, block),
+        )
+
+
+class ChecklistAddView(LoginRequiredMixin, View):
+    """Add one checklist item to an ownership-scoped card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = ChecklistItemForm(
+            request.POST,
+            parent_queryset=block.checklist_items.filter(parent__isnull=True),
+        )
+        if not form.is_valid():
+            return _render_card_detail_response(request, block, checklist_form=form)
+        item = form.save(commit=False)
+        item.time_block = block
+        item.position = block.checklist_items.count()
+        item.save()
+        record_activity(block, request.user, 'checklist_item_added', {'text': item.text})
+        return _render_card_detail_response(request, block)
+
+
+class CommentAddView(LoginRequiredMixin, View):
+    """Add an authored comment to an ownership-scoped card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardCommentForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        comment = form.save(commit=False)
+        comment.time_block = block
+        comment.author = request.user
+        comment.save()
+        record_mentions(comment)
+        record_activity(
+            block,
+            request.user,
+            'comment_added',
+            {'comment_id': comment.pk},
+        )
+        return _render_card_detail_response(request, block)
+
+
+class CommentReplyView(LoginRequiredMixin, View):
+    """Add one reply to a top-level comment on an owned card."""
+
+    def post(self, request, *args, **kwargs):
+        parent = get_object_or_404(
+            CardComment,
+            pk=kwargs['comment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        form = CardCommentForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, parent.time_block)
+        reply = form.save(commit=False)
+        reply.time_block = parent.time_block
+        reply.author = request.user
+        reply.parent = parent
+        reply.save()
+        record_mentions(reply)
+        record_activity(
+            parent.time_block,
+            request.user,
+            'comment_replied',
+            {'comment_id': parent.pk, 'reply_id': reply.pk},
+        )
+        return _render_card_detail_response(request, parent.time_block)
+
+
+class LabelAddView(LoginRequiredMixin, View):
+    """Create or associate a user-owned label with an owned card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardLabelForm(request.POST)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        label, created = CardLabel.objects.get_or_create(
+            user=request.user,
+            name=form.cleaned_data['name'],
+            defaults={'hex_code': form.cleaned_data['hex_code']},
+        )
+        if not created and label.hex_code != form.cleaned_data['hex_code']:
+            label.hex_code = form.cleaned_data['hex_code']
+            label.save(update_fields=['hex_code'])
+        block.labels.add(label)
+        record_activity(block, request.user, 'label_added', {'label_id': label.pk})
+        return _render_card_detail_response(request, block)
+
+
+class LabelRemoveView(LoginRequiredMixin, View):
+    """Remove a user-owned label association without deleting the label."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        label = get_object_or_404(CardLabel, pk=kwargs['label_pk'], user=request.user)
+        block.labels.remove(label)
+        record_activity(block, request.user, 'label_removed', {'label_id': label.pk})
+        return _render_card_detail_response(request, block)
+
+
+class AttachmentAddView(LoginRequiredMixin, View):
+    """Upload one validated attachment to an owned card."""
+
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardAttachmentForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        attachment = form.save(commit=False)
+        attachment.time_block = block
+        attachment.uploaded_by = request.user
+        attachment.original_name = attachment.file.name
+        attachment.save()
+        record_activity(block, request.user, 'attachment_added', {'attachment_id': attachment.pk})
+        return _render_card_detail_response(request, block)
+
+
+class AttachmentDeleteView(LoginRequiredMixin, View):
+    """Delete an attachment from an owned card."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        attachment = get_object_or_404(
+            CardAttachment.objects.select_related('time_block'),
+            pk=kwargs['attachment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        block = attachment.time_block
+        attachment.file.delete(save=False)
+        attachment.delete()
+        record_activity(
+            block,
+            request.user,
+            'attachment_deleted',
+            {'attachment_id': kwargs['attachment_pk']},
+        )
+        return _render_card_detail_response(request, block)
+
+
+class CardTransferView(LoginRequiredMixin, View):
+    """Transfer an owned card after validating it for the destination user."""
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(TimeBlock, pk=kwargs['pk'], user=request.user)
+        form = CardTransferForm(request.POST, user=request.user)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block)
+        previous_owner = block.user
+        recipient = form.cleaned_data['recipient']
+        block.user = recipient
+        try:
+            block.save()
+        except ValidationError:
+            block.user = previous_owner
+            return HttpResponseBadRequest(
+                'Transfer rejected: the card overlaps a card owned by the recipient.'
+            )
+        transfer = CardTransfer.objects.create(
+            time_block=block,
+            from_user=previous_owner,
+            to_user=recipient,
+            initiated_by=request.user,
+        )
+        record_activity(
+            block,
+            request.user,
+            'card_transferred',
+            {'transfer_id': transfer.pk, 'to_user_id': recipient.pk},
+        )
+        grid_response = _render_grid_response(request)
+        return HttpResponse(
+            '<aside id="card-panel" data-card-panel></aside>' + grid_response.content.decode()
+        )
+
+
+class CommentUpdateView(LoginRequiredMixin, View):
+    """Edit only the authenticated user's comment."""
+
+    def post(self, request, *args, **kwargs):
+        comment = get_object_or_404(
+            CardComment.objects.select_related('time_block'),
+            pk=kwargs['comment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+            author=request.user,
+        )
+        form = CardCommentForm(request.POST, instance=comment)
+        if not form.is_valid():
+            return _render_card_detail_response(request, comment.time_block)
+        form.save()
+        record_mentions(comment)
+        record_activity(
+            comment.time_block,
+            request.user,
+            'comment_updated',
+            {'comment_id': comment.pk},
+        )
+        return _render_card_detail_response(request, comment.time_block)
+
+
+class CommentDeleteView(LoginRequiredMixin, View):
+    """Delete only the authenticated user's comment."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        comment = get_object_or_404(
+            CardComment.objects.select_related('time_block'),
+            pk=kwargs['comment_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+            author=request.user,
+        )
+        block = comment.time_block
+        comment_id = comment.pk
+        comment.delete()
+        record_activity(block, request.user, 'comment_deleted', {'comment_id': comment_id})
+        return _render_card_detail_response(request, block)
+
+
+class ChecklistToggleView(LoginRequiredMixin, View):
+    """Toggle completion on one ownership-scoped checklist item."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        item.is_completed = not item.is_completed
+        item.save(update_fields=['is_completed'])
+        record_activity(
+            item.time_block,
+            request.user,
+            'checklist_item_toggled',
+            {'item_id': item.pk, 'completed': item.is_completed},
+        )
+        return _render_card_detail_response(request, item.time_block)
+
+
+class ChecklistDeleteView(LoginRequiredMixin, View):
+    """Delete one ownership-scoped checklist item."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        block = item.time_block
+        text = item.text
+        item.delete()
+        record_activity(block, request.user, 'checklist_item_deleted', {'text': text})
+        return _render_card_detail_response(request, block)
+
+
+class ChecklistUpdateView(LoginRequiredMixin, View):
+    """Edit one ownership-scoped checklist item."""
+
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        form = ChecklistItemForm(request.POST, instance=item)
+        if not form.is_valid():
+            return _render_card_detail_response(request, item.time_block)
+        form.save()
+        record_activity(
+            item.time_block,
+            request.user,
+            'checklist_item_updated',
+            {'item_id': item.pk},
+        )
+        return _render_card_detail_response(request, item.time_block)
+
+
+class ChecklistMoveView(LoginRequiredMixin, View):
+    """Move one checklist item one position up or down."""
+
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        item = get_object_or_404(
+            ChecklistItem.objects.select_related('time_block'),
+            pk=kwargs['item_pk'],
+            time_block__pk=kwargs['pk'],
+            time_block__user=request.user,
+        )
+        direction = request.POST.get('direction')
+        sibling_qs = item.time_block.checklist_items.filter(parent=item.parent)
+        target_pk = request.POST.get('target_pk')
+        items = list(sibling_qs.order_by('position', 'created_at', 'pk'))
+        if target_pk:
+            target = next(
+                (candidate for candidate in items if str(candidate.pk) == target_pk),
+                None,
+            )
+            if target is None or target == item:
+                return _render_card_detail_response(request, item.time_block)
+            items.remove(item)
+            items.insert(items.index(target), item)
+            for position, sibling in enumerate(items):
+                sibling.position = position
+                sibling.save(update_fields=['position'])
+            record_activity(
+                item.time_block,
+                request.user,
+                'checklist_item_moved',
+                {'item_id': item.pk, 'target_id': target.pk},
+            )
+            return _render_card_detail_response(request, item.time_block)
+        index = items.index(item)
+        target_index = index - 1 if direction == 'up' else index + 1
+        if direction not in ('up', 'down') or not 0 <= target_index < len(items):
+            return _render_card_detail_response(request, item.time_block)
+        other = items[target_index]
+        item.position, other.position = other.position, item.position
+        item.save(update_fields=['position'])
+        other.save(update_fields=['position'])
+        record_activity(
+            item.time_block,
+            request.user,
+            'checklist_item_moved',
+            {'item_id': item.pk, 'direction': direction},
+        )
+        return _render_card_detail_response(request, item.time_block)
+
+
+class CardDetailUpdateView(LoginRequiredMixin, UpdateView):
+    """Update card properties and record a single activity transaction."""
+
+    model = TimeBlock
+    form_class = CardDetailForm
+    template_name = 'planner/partials/card_detail_panel.html'
+
+    def get_queryset(self):
+        return TimeBlock.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_card_detail_context(self.request, self.object, context.get('form')))
+        return context
+
+    def form_invalid(self, form):
+        response = super().form_invalid(form)
+        response['HX-Retarget'] = '#card-panel'
+        response['HX-Reswap'] = 'outerHTML'
+        return response
+
+    @transaction.atomic
+    def form_valid(self, form):
+        previous = TimeBlock.objects.get(pk=self.object.pk)
+        before = {
+            'label': previous.label,
+            'description': previous.description,
+            'status': previous.status,
+            'due_at': previous.due_at.isoformat() if previous.due_at else None,
+        }
+        self.object = form.save()
+        changed = {
+            field: (
+                getattr(self.object, field).isoformat()
+                if field == 'due_at' and getattr(self.object, field)
+                else getattr(self.object, field)
+            )
+            for field in before
+            if before[field] != (
+                getattr(self.object, field).isoformat()
+                if field == 'due_at' and getattr(self.object, field)
+                else getattr(self.object, field)
+            )
+        }
+        if changed:
+            if self.object.recurrence_series_id:
+                self.object.overridden = True
+                self.object.save(update_fields=['overridden'])
+            record_activity(
+                self.object,
+                self.request.user,
+                'card_updated',
+                {'changes': changed},
+            )
+        return _render_card_detail_response(self.request, self.object)
+
+
+class RecurrenceUpdateView(LoginRequiredMixin, UpdateView):
+    """Update the future rule for an ownership-scoped recurring card."""
+
+    model = TimeBlock
+    form_class = RecurrenceForm
+
+    def get_queryset(self):
+        return TimeBlock.objects.filter(user=self.request.user).select_related('recurrence_series')
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = self.get_object()
+        series = block.recurrence_series
+        if series is None:
+            return HttpResponseBadRequest('This card is not recurring.')
+        form = self.form_class(request.POST, instance=series, user=request.user)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block, form=form)
+        form.save()
+        update_weekly_series(series)
+        replacement = series.occurrences.order_by('scheduled_date', 'pk').first()
+        target = replacement or block
+        record_activity(target, request.user, 'recurrence_updated', {'series_id': series.pk})
+        return _render_card_detail_response(request, target)
+
+
+class OccurrenceSkipView(LoginRequiredMixin, View):
+    """Exclude one recurring occurrence while preserving its row and history."""
+
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(
+            TimeBlock.objects.select_related('recurrence_series'),
+            pk=kwargs['pk'],
+            user=request.user,
+        )
+        if block.recurrence_series_id is None or block.scheduled_date is None:
+            return HttpResponseBadRequest('This card is not a recurring occurrence.')
+        block.recurrence_series.exceptions.get_or_create(occurrence_date=block.scheduled_date)
+        block.skipped = True
+        block.save(update_fields=['skipped'])
+        record_activity(
+            block,
+            request.user,
+            'occurrence_skipped',
+            {'date': block.scheduled_date.isoformat()},
+        )
+        return _render_card_detail_response(request, block)
+
+
+class OccurrenceRestoreView(LoginRequiredMixin, View):
+    """Restore one occurrence's rule values and remove its exception."""
+
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(
+            TimeBlock.objects.select_related('recurrence_series'),
+            pk=kwargs['pk'],
+            user=request.user,
+        )
+        if block.recurrence_series_id is None:
+            return HttpResponseBadRequest('This card is not a recurring occurrence.')
+        restore_occurrence(block)
+        record_activity(block, request.user, 'occurrence_restored', {})
+        return _render_card_detail_response(request, block)
 
 
 def _render_palette_response(request):
@@ -111,11 +712,18 @@ def _render_palette_response(request):
         'planner/partials/palette_panel.html', {'colors': colors}, request=request,
     )
     settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
-    blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
-    week_grid = build_week_grid(settings_obj, blocks)
+    week_start = selected_week(request)
+    blocks = _week_blocks(request.user, week_start)
+    week_grid = build_week_grid(settings_obj, blocks, week_start)
     grid_html = render_to_string(
         'planner/partials/grid_table.html',
-        {'week_grid': week_grid, 'toast_message': '', 'toast_level': '', 'grid_oob': True},
+        {
+            'week_grid': week_grid,
+            'toast_message': '',
+            'toast_level': '',
+            'grid_oob': True,
+            **_navigation_context(request, week_start),
+        },
         request=request,
     )
     return HttpResponse(palette_html + grid_html)
@@ -136,9 +744,85 @@ class GridView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=self.request.user)
-        blocks = TimeBlock.objects.filter(user=self.request.user).select_related('color')
-        context['week_grid'] = build_week_grid(settings_obj, blocks)
+        week_start = selected_week(self.request)
+        blocks = _week_blocks(self.request.user, week_start)
+        context['week_grid'] = build_week_grid(settings_obj, blocks, week_start)
+        context.update(_navigation_context(self.request, week_start))
+        context['navigation_htmx'] = True
         return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get('HX-Request') == 'true':
+            if self.request.headers.get('HX-Target') == 'calendar-picker':
+                return render(self.request, 'planner/partials/calendar_picker.html', context)
+            return render(self.request, 'planner/partials/planner_surface.html', context)
+        return super().render_to_response(context, **response_kwargs)
+
+
+class KanbanView(LoginRequiredMixin, TemplateView):
+    """Show the selected week's cards grouped by their existing status."""
+
+    template_name = 'planner/kanban.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        week_start = selected_week(self.request)
+        blocks = list(
+            _week_blocks(self.request.user, week_start)
+            .prefetch_related('labels')
+        )
+        context['columns'] = [
+            {
+                'value': value,
+                'label': label,
+                'blocks': [block for block in blocks if block.status == value],
+            }
+            for value, label in TimeBlock.STATUS_CHOICES
+        ]
+        context.update(_navigation_context(self.request, week_start))
+        context['selected_week_start'] = week_start
+        return context
+
+
+class MentionNotificationView(LoginRequiredMixin, TemplateView):
+    """List mentions addressed to the authenticated user."""
+
+    template_name = 'planner/notifications.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['notifications'] = MentionNotification.objects.filter(
+            mentioned_user=self.request.user,
+        ).select_related('comment', 'comment__time_block', 'comment__author')
+        context['unread_count'] = MentionNotification.objects.filter(
+            mentioned_user=self.request.user,
+            is_read=False,
+        ).count()
+        return context
+
+
+class MentionReadView(LoginRequiredMixin, View):
+    """Mark one ownership-scoped mention as read."""
+
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        notification = get_object_or_404(
+            MentionNotification,
+            pk=kwargs['pk'],
+            mentioned_user=request.user,
+        )
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        return render(request, 'planner/notifications.html', {
+            'notifications': MentionNotification.objects.filter(
+                mentioned_user=request.user,
+            ).select_related('comment', 'comment__time_block', 'comment__author'),
+            'unread_count': MentionNotification.objects.filter(
+                mentioned_user=request.user,
+                is_read=False,
+            ).count(),
+        })
 
 
 class SettingsUpdateView(LoginRequiredMixin, UpdateView):
@@ -175,7 +859,7 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
 
     model = TimeBlock
     form_class = TimeBlockForm
-    template_name = 'planner/partials/block_form.html'
+    template_name = 'planner/partials/quick_block_form.html'
 
     def get_initial(self):
         initial = super().get_initial()
@@ -191,6 +875,7 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
+        kwargs['week_start'] = selected_week(self.request)
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -198,6 +883,9 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
         # An empty cell always spans exactly one row (PRD 5.2.4); the
         # wrapping <td> for the inline create form matches that.
         context['rowspan'] = 1
+        week_start = selected_week(self.request)
+        context['selected_week_start'] = week_start
+        context['selected_week_value'] = week_start.isoformat()
         return context
 
     def form_invalid(self, form):
@@ -231,7 +919,35 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
         skipped, not aborted -- reported through the toast channel, since
         the primary block has already saved successfully by that point.
         """
+        if form.cleaned_data.get('recurrence_weekly'):
+            series = create_weekly_series(
+                user=self.request.user,
+                label=form.cleaned_data['label'],
+                start_time=form.cleaned_data['start_time'],
+                end_time=form.cleaned_data['end_time'],
+                starts_on=form.instance.scheduled_date,
+                weekdays=[int(day) for day in form.cleaned_data['recurrence_weekdays']],
+                ends_on=form.cleaned_data['recurrence_until'],
+                color=form.cleaned_data.get('color'),
+            )
+            occurrences = list(series.occurrences.order_by('scheduled_date'))
+            if occurrences:
+                self.object = occurrences[0]
+                record_activity(
+                    self.object,
+                    self.request.user,
+                    'recurrence_created',
+                    {'series_id': series.pk, 'occurrence_count': len(occurrences)},
+                )
+            return _render_grid_response(self.request)
+
         self.object = form.save()
+        record_activity(
+            self.object,
+            self.request.user,
+            'card_created',
+            {'label': self.object.label},
+        )
 
         day_labels_by_value = dict(TimeBlock.DAY_CHOICES)
         skipped_day_labels = []
@@ -242,6 +958,9 @@ class BlockCreateView(LoginRequiredMixin, CreateView):
             copy = TimeBlock(
                 user=self.request.user,
                 label=self.object.label,
+                scheduled_date=self.object.scheduled_date + timedelta(
+                    days=day - self.object.day_of_week,
+                ),
                 day_of_week=day,
                 start_time=self.object.start_time,
                 end_time=self.object.end_time,
@@ -292,12 +1011,16 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
+        kwargs['week_start'] = selected_week(self.request)
         return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=self.request.user)
         context['rowspan'] = self.object.get_rowspan(settings_obj.slot_interval)
+        week_start = selected_week(self.request)
+        context['selected_week_start'] = week_start
+        context['selected_week_value'] = week_start.isoformat()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -346,6 +1069,8 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
             )
 
         self.object.end_time = time_from_minutes(new_end_minutes)
+        if self.object.recurrence_series_id:
+            self.object.overridden = True
 
         try:
             self.object.save()
@@ -358,7 +1083,18 @@ class BlockUpdateView(LoginRequiredMixin, UpdateView):
         return _render_grid_response(self.request)
 
     def form_valid(self, form):
+        changed_fields = list(form.changed_data)
         self.object = form.save()
+        if self.object.recurrence_series_id:
+            self.object.overridden = True
+            self.object.save(update_fields=['overridden'])
+        if changed_fields:
+            record_activity(
+                self.object,
+                self.request.user,
+                'card_schedule_updated',
+                {'fields': changed_fields},
+            )
         return _render_grid_response(self.request)
 
     def form_invalid(self, form):
@@ -433,6 +1169,8 @@ class BlockResizeView(LoginRequiredMixin, View):
 
         block.start_time = time_from_minutes(clamped_start)
         block.end_time = time_from_minutes(clamped_end)
+        if block.recurrence_series_id:
+            block.overridden = True
         try:
             block.save()
         except ValidationError as exc:
@@ -466,7 +1204,11 @@ class CellCancelView(LoginRequiredMixin, View):
             return HttpResponseBadRequest('Invalid day/start/end parameters.')
 
         cell = GridCell(kind='empty', day=day, slot_start=start, slot_end=end)
-        return render(request, 'planner/partials/empty_cell.html', {'cell': cell})
+        return render(
+            request,
+            'planner/partials/empty_cell.html',
+            {'cell': cell, 'selected_week_start': selected_week(request)},
+        )
 
 
 class BlockCancelView(LoginRequiredMixin, View):
@@ -624,8 +1366,9 @@ class ExportMarkdownView(LoginRequiredMixin, View):
         # No `select_related('color')` here (unlike every other view in
         # this file) -- render_week_markdown() never reads `block.color`,
         # so that join would be pure overhead for this one view.
-        blocks = TimeBlock.objects.filter(user=request.user)
-        content = render_week_markdown(blocks, settings_obj.time_format)
+        blocks = _week_blocks(request.user, selected_week(request))
+        week_start = selected_week(request)
+        content = render_week_markdown(blocks, settings_obj.time_format, week_start)
         response = HttpResponse(content, content_type='text/markdown; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="weekly-planner.md"'
         return response
@@ -656,8 +1399,9 @@ class ExportSVGView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=request.user)
-        blocks = TimeBlock.objects.filter(user=request.user).select_related('color')
-        week_grid = build_week_grid(settings_obj, blocks)
+        week_start = selected_week(request)
+        blocks = _week_blocks(request.user, week_start)
+        week_grid = build_week_grid(settings_obj, blocks, week_start)
         svg_export = build_svg_export(week_grid)
         response = render(
             request,

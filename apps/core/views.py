@@ -1,6 +1,14 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
+from django.shortcuts import render
 from django.views.generic import TemplateView
 
+from apps.planner.dates import (
+    navigation_context,
+    normalize_week_start,
+    parse_week_start,
+    week_end,
+)
 from apps.planner.forms import PlannerSettingsForm
 from apps.planner.grid import build_week_grid
 from apps.planner.models import BlockColor, PlannerSettings, TimeBlock
@@ -32,7 +40,25 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         settings_obj, _ = PlannerSettings.objects.get_or_create(user=self.request.user)
         context['settings_form'] = PlannerSettingsForm(instance=settings_obj)
-        blocks = TimeBlock.objects.filter(user=self.request.user).select_related('color')
-        context['week_grid'] = build_week_grid(settings_obj, blocks)
+        week_start = parse_week_start(self.request.GET.get('week'))
+        legacy_blocks = (
+            Q(scheduled_date__isnull=True)
+            if week_start == normalize_week_start()
+            else Q(pk__in=[])
+        )
+        blocks = TimeBlock.objects.filter(user=self.request.user).filter(
+            Q(scheduled_date__gte=week_start, scheduled_date__lte=week_end(week_start))
+            | legacy_blocks,
+        ).select_related('color')
+        context['week_grid'] = build_week_grid(settings_obj, blocks, week_start)
         context['colors'] = BlockColor.objects.filter(user=self.request.user).order_by('name')
+        context.update(navigation_context(week_start, self.request.GET.get('month')))
+        context['navigation_htmx'] = True
         return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get('HX-Request') == 'true':
+            if self.request.headers.get('HX-Target') == 'calendar-picker':
+                return render(self.request, 'planner/partials/calendar_picker.html', context)
+            return render(self.request, 'planner/partials/planner_surface.html', context)
+        return super().render_to_response(context, **response_kwargs)

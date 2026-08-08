@@ -58,3 +58,24 @@
     opacity: 0.6;
     pointer-events: none;
 }
+
+@layer components {
+    .planner-surface {
+        min-height: min(78vh, 56rem);
+    }
+
+    .planner-grid {
+        height: min(70vh, 50rem);
+        overscroll-behavior: contain;
+    }
+
+    @media (max-width: 640px) {
+        .planner-surface {
+            min-height: 72vh;
+        }
+
+        .planner-grid {
+            height: 68vh;
+        }
+    }
+}

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+    <div>
+        <h1 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-neutral-100">Notifications</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-neutral-400">{{ unread_count }} unread mention{{ unread_count|pluralize }}.</p>
+    </div>
+    <div class="mt-8 space-y-3">
+        {% for notification in notifications %}
+            <article class="rounded-xl border p-4 {% if notification.is_read %}border-slate-200 bg-white dark:border-slate-700 dark:bg-[#313335]{% else %}border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-500/10{% endif %}">
+                <p class="text-sm text-slate-800 dark:text-neutral-100"><strong>{{ notification.comment.author.username }}</strong> mentioned you in <strong>{{ notification.comment.time_block.label }}</strong>.</p>
+                <p class="mt-1 whitespace-pre-wrap text-sm text-slate-600 dark:text-neutral-300">{{ notification.comment.body }}</p>
+                {% if not notification.is_read %}<form class="mt-2" method="post" action="{% url 'planner:notification-read' notification.pk %}">{% csrf_token %}<button type="submit" class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-300">Mark as read</button></form>{% endif %}
+            </article>
+        {% empty %}<p class="text-sm text-slate-500 dark:text-neutral-400">No notifications.</p>{% endfor %}
+    </div>
+{% endblock %}

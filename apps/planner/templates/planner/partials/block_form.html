@@ -84,6 +84,7 @@ Swap strategy (Sprint 6, htmx-interaction):
             class="space-y-3"
         >
             {% csrf_token %}
+            <input type="hidden" name="week" value="{{ selected_week_start|date:'Y-m-d' }}">
 
             {% include 'partials/form_field.html' with field=form.label %}
             {% include 'partials/form_field.html' with field=form.day_of_week %}
@@ -160,6 +161,24 @@ Swap strategy (Sprint 6, htmx-interaction):
                         <p class="mt-1 text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
                     {% endfor %}
                 </div>
+                <div class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-neutral-300">
+                        {{ form.recurrence_weekly }} {{ form.recurrence_weekly.label }}
+                    </label>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-neutral-400">{{ form.recurrence_weekly.help_text }}</p>
+                    <div class="mt-2 space-y-2">
+                        {% include 'partials/form_field.html' with field=form.recurrence_until %}
+                        <span class="block text-sm font-medium text-slate-700 dark:text-neutral-300">{{ form.recurrence_weekdays.label }}</span>
+                        <div class="flex flex-wrap gap-1.5 text-xs">
+                            {% for choice in form.recurrence_weekdays %}
+                                <label class="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-700 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-600 dark:text-neutral-200 dark:has-[:checked]:bg-indigo-500/10">
+                                    {{ choice.tag }} <span>{{ choice.choice_label|slice:':3' }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                        {% for error in form.recurrence_weekdays.errors %}<p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
             {% endif %}
 
             <div class="flex items-center justify-between gap-2 pt-1">
@@ -200,7 +219,7 @@ Swap strategy (Sprint 6, htmx-interaction):
                         a behavior change.
                         {% endcomment %}
                         {% url 'planner:cell-cancel' as cell_cancel_base %}
-                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' data_block_cancel=True %}
+                        {% include 'partials/buttons/secondary.html' with label='Cancel' hx_get=cell_cancel_base|add:'?week='|add:selected_week_value|add:'&day='|add:form.day_of_week.value|add:'&start='|add:form.start_time.value|add:'&end='|add:form.end_time.value hx_target='closest td' hx_swap='outerHTML' data_block_cancel=True %}
                     {% endif %}
                 </div>
 

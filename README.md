@@ -1,35 +1,36 @@
 # Routine Organizer
 
-A time-blocking weekly planner built with Django — click any empty cell, type a label, optionally pick a color, and drag an edge to resize. Server-rendered with HTMX-driven interactions and a PyCharm-inspired Darcula dark theme. No JavaScript build step.
+A date-aware weekly planner built with Django, HTMX, Tailwind CSS, and vanilla JavaScript. It combines a time-blocking grid with Trello-style card details while remaining server-rendered and dependency-lean.
 
-![Routine Organizer — the weekly grid with colored time blocks](assets/ForTheReadme/MainPageLight.png)
+![Routine Organizer landing page](assets/MainPageLight.png)
 
 ## Features
 
-- **Free-form time blocks.** Click any empty cell and type anything — no fixed categories, no mandatory event fields.
-- **Drag to resize.** Pull a block's edge to span consecutive time slots, with a +/- keyboard/click fallback.
-- **Repeat across days.** Copy one block to other days in a single request; overlapping copies are skipped and reported, never silently dropped.
-- **Personal color palette.** Manage your own named hex colors; deleting one leaves affected blocks with a neutral fallback instead of breaking anything.
-- **Export anywhere.** Grab your week as Markdown, SVG, or PNG, or print a clean PDF — all generated from your real data, zero extra dependencies.
-- **Zero full-page reloads.** Every block, color, and settings operation is an HTMX partial swap.
-- **Light/dark theme** with a Darcula-inspired dark palette, persisted per browser.
-- **Configurable grid.** 30 or 60-minute slots, any day-start/day-end range (including midnight-crossing), 24h or 12h AM/PM display.
-- **Native Django auth.** No extra auth package.
+- Monday-to-Sunday planner with 30 or 60-minute slots and configurable visible hours.
+- Fast card creation from an empty time slot, overlap validation, editing, deletion, and drag resizing.
+- Week navigation with browser history and a compact monthly date picker.
+- Card details with description, status, due date, labels, attachments, checklists, comments, replies, and activity.
+- Weekly recurrence with materialized occurrences, exceptions, overrides, skip, and restore actions.
+- Kanban view grouped by card status.
+- `@username` mentions and persisted notifications.
+- Card ownership transfer with overlap protection and an audit record.
+- Personal color palette and persistent light/dark themes.
+- Markdown, SVG, PNG, print, and browser PDF export for the selected week.
+- Per-user data isolation with Django session authentication and CSRF protection.
 
 ## Stack
 
-| | |
+| Layer | Technology |
 |---|---|
-| Backend | Python 3.12 · Django 6.0 |
-| Frontend | Django Template Language · TailwindCSS v4 (standalone CLI) · HTMX |
-| Database | SQLite (single file) |
-| Auth | `django.contrib.auth` (native) |
-| Tooling | [`uv`](https://docs.astral.sh/uv/) |
-| Deployment | Docker / Docker Compose · gunicorn · WhiteNoise |
+| Backend | Python 3.12+ and Django 6.0.7+ |
+| Frontend | Django templates, HTMX 2, Tailwind CSS 4, vanilla JavaScript |
+| Database | SQLite |
+| Tooling | `uv`, Ruff, Tailwind standalone CLI |
+| Deployment | Docker Compose, Gunicorn, WhiteNoise |
 
-## Quick start
+## Quick Start
 
-Requires Python 3.12 and [`uv`](https://docs.astral.sh/uv/getting-started/installation/).
+Install Python 3.12+ and [`uv`](https://docs.astral.sh/uv/getting-started/installation/), then run:
 
 ```bash
 uv sync
@@ -37,83 +38,68 @@ uv run python manage.py migrate
 uv run python manage.py runserver
 ```
 
-Open <http://127.0.0.1:8000/> and sign up from the landing page — your account is ready to use immediately.
+Open <http://127.0.0.1:8000/>, create an account, and use the dashboard.
 
-### Docker
-
-Requires Docker with the Compose plugin.
+## Docker
 
 ```bash
-cp .env.example .env        # optional — the app boots with dev-safe defaults without it
+cp .env.example .env
 docker compose build
 docker compose up -d
 ```
 
-The container runs `migrate` on start and serves the app at <http://localhost:2000/> (host port 8000 is left free for a local `runserver`; change it in `docker-compose.yml` if you'd like it elsewhere). Data persists in the `sqlite_data` named volume across restarts; `docker compose down -v` wipes it.
+The application is available at <http://localhost:2000/>. The container runs migrations when it starts and stores SQLite data in the `sqlite_data` named volume.
 
-> **Dev-only defaults.** Without a `.env` file the container runs with `DEBUG=True` and an empty `ALLOWED_HOSTS` — fine for a quick local look. Before exposing it beyond `localhost`, set `DEBUG=False`, a real `ALLOWED_HOSTS`, and a fresh `SECRET_KEY` in `.env`.
+The default configuration is for local evaluation. Before exposing the service, set a unique `SECRET_KEY`, set `DEBUG=False`, configure `ALLOWED_HOSTS`, and provide production media storage. Uploaded attachments under `/app/media` are not persisted by the current Compose file and are not served by WhiteNoise.
 
-## Project layout
+See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for deployment constraints.
 
-```
-config/          # Project configuration (settings, urls, wsgi, asgi)
+## Project Layout
+
+```text
 apps/
-  core/          # Landing page, dashboard shell, TimestampedModel
-  accounts/      # Sign up, login, logout (native auth)
-  planner/       # TimeBlock / BlockColor / PlannerSettings models, grid builder, export, HTMX views
-templates/       # Project-level templates + shared partials
-static/          # CSS (Tailwind source + compiled output) and JS
+  accounts/          Native signup, login, and logout
+  core/              Landing page and dashboard
+  planner/           Scheduling domain, views, services, templates, and tests
+config/              Django settings, root URLs, WSGI, and ASGI
+docs/                Product, architecture, development, and operations docs
+static/              Tailwind source/output and browser JavaScript
+templates/           Base template and shared project partials
 ```
-
-## Configuration reference
-
-Every variable in `.env.example` maps directly to `config/settings.py`:
-
-| Variable | Purpose | Default if unset |
-|---|---|---|
-| `SECRET_KEY` | Django's cryptographic signing key | insecure development fallback — **required in production** |
-| `DEBUG` | `True` / `False` | `True` |
-| `ALLOWED_HOSTS` | Comma-separated hostnames | `localhost,127.0.0.1` |
-
-Two container-only settings, `SQLITE_DB_PATH` and `DJANGO_USE_WHITENOISE`, are set in the Dockerfile and are not meant to be edited locally.
 
 ## Development
 
-### TailwindCSS build
+Run the complete test suite and static checks:
 
-Tailwind v4 is configured in `static/css/input.css` — there is no `tailwind.config.js`. The standalone CLI is not committed (~100 MB); download it once into `bin/` (gitignored):
+```bash
+uv run python manage.py test
+uv run python manage.py check
+uv run python manage.py makemigrations --check --dry-run
+uv run ruff check apps config
+```
+
+Tailwind CSS is configured in `static/css/input.css`. Download the standalone CLI once into the ignored `bin/` directory:
 
 ```bash
 mkdir -p bin
 curl -sL -o bin/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
 chmod +x bin/tailwindcss
-```
-
-For other platforms, swap the asset name (see the [release page](https://github.com/tailwindlabs/tailwindcss/releases/latest)).
-
-Build the compiled stylesheet (committed as `static/css/app.css`):
-
-```bash
 ./bin/tailwindcss -i static/css/input.css -o static/css/app.css
 ```
 
-Use `--watch` while developing templates and `--minify` for a production build. Rebuild `app.css` whenever you change a utility class — an unbuilt stylesheet is not a design bug.
+The compiled `static/css/app.css` is committed. Rebuild it whenever template utility classes or `input.css` change.
 
-### Tests
-
-```bash
-uv run python manage.py test
-```
-
-Runs the full suite (models, views, and the pure-Python grid/export builders) against Django's throwaway test database — nothing depends on `db.sqlite3`, so it passes clean from a fresh clone.
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for contribution conventions.
 
 ## Documentation
 
-- [`ProductRequirementDocument.md`](docs/ProductRequirementDocument.md) — full product specification, requirements, and design system
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the codebase is organized, sprint by sprint
+- [`ProductRequirementDocument.md`](docs/ProductRequirementDocument.md): current product scope and behavior.
+- [`ARCHITECTURE.md`](docs/ARCHITECTURE.md): current system structure and technical decisions.
+- [`DEVELOPMENT.md`](docs/DEVELOPMENT.md): local workflow and implementation conventions.
+- [`OPERATIONS.md`](docs/OPERATIONS.md): configuration, Docker, persistence, and production gaps.
 
 ## License
 
-Copyright (c) 2026 Henrique Mayer
+Copyright (c) 2026 Henrique Mayer.
 
-Licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). Personal, noncommercial use is permitted — studying it, running it for yourself, adapting it for a hobby project. Selling this software, or using it for any commercial purpose, is not. See [LICENSE](LICENSE) for the full terms.
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). The source may be studied, run, and adapted for noncommercial use; it is not OSI open-source software and may not be used commercially under this license.
