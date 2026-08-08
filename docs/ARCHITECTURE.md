@@ -20,7 +20,7 @@ PRD, it's recorded here rather than silently followed or silently ignored.
 **Sprint 10 — Grid Export (Markdown, SVG, PNG, PDF): complete.** *(Post-launch addition, not in the PRD's original §13 plan — see below.)*
 **Phase A — Week Foundation: complete.** *(Adds date-aware week navigation and the calendar popover; recurrence is reserved for the next domain phase.)*
 **Phase B — Card Details: complete.** *(Adds status, description, due date, activity, and the HTMX detail panel.)*
-**Phase C — Weekly Recurrence: complete.** *(Adds weekly rules, dated materialized occurrences, and exceptions.)*
+**Phase C — Weekly Recurrence: complete.** *(Adds weekly rules, dated materialized occurrences, exceptions, rule editing, and occurrence skipping.)*
 
 The project boots, has a Tailwind v4 design-system base, full native auth (signup, login,
 logout), a real landing page (hero, features, decorative grid mock), and a dashboard shell

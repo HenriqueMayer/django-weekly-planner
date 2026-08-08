@@ -52,7 +52,13 @@ from apps.planner.dates import (
     week_end,
 )
 from apps.planner.export import build_svg_export, render_week_markdown
-from apps.planner.forms import BlockColorForm, CardDetailForm, PlannerSettingsForm, TimeBlockForm
+from apps.planner.forms import (
+    BlockColorForm,
+    CardDetailForm,
+    PlannerSettingsForm,
+    RecurrenceForm,
+    TimeBlockForm,
+)
 from apps.planner.grid import GridCell, build_week_grid
 from apps.planner.models import (
     BlockColor,
@@ -61,7 +67,7 @@ from apps.planner.models import (
     minutes_since_midnight,
     time_from_minutes,
 )
-from apps.planner.recurrence import create_weekly_series
+from apps.planner.recurrence import create_weekly_series, update_weekly_series
 from apps.planner.services import record_activity
 
 
@@ -103,7 +109,7 @@ def _week_blocks(user, week_start):
     ).filter(
         Q(scheduled_date__gte=week_start, scheduled_date__lte=week_end(week_start))
         | legacy_blocks,
-    ).select_related('color')
+    ).filter(skipped=False).select_related('color')
 
 
 def _navigation_context(request, week_start):
@@ -138,6 +144,10 @@ def _card_detail_context(request, block, form=None):
         'block': block,
         'detail_form': form or CardDetailForm(instance=block),
         'activities': block.activity_events.select_related('actor')[:20],
+        'recurrence_form': (
+            RecurrenceForm(instance=block.recurrence_series)
+            if block.recurrence_series_id else None
+        ),
         'selected_week_start': week_start,
         'selected_week_value': week_start.isoformat(),
     }
@@ -234,6 +244,56 @@ class CardDetailUpdateView(LoginRequiredMixin, UpdateView):
                 {'changes': changed},
             )
         return _render_card_detail_response(self.request, self.object)
+
+
+class RecurrenceUpdateView(LoginRequiredMixin, UpdateView):
+    """Update the future rule for an ownership-scoped recurring card."""
+
+    model = TimeBlock
+    form_class = RecurrenceForm
+
+    def get_queryset(self):
+        return TimeBlock.objects.filter(user=self.request.user).select_related('recurrence_series')
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = self.get_object()
+        series = block.recurrence_series
+        if series is None:
+            return HttpResponseBadRequest('This card is not recurring.')
+        form = self.form_class(request.POST, instance=series)
+        if not form.is_valid():
+            return _render_card_detail_response(request, block, form=form)
+        form.save()
+        update_weekly_series(series)
+        record_activity(block, request.user, 'recurrence_updated', {'series_id': series.pk})
+        return _render_card_detail_response(request, block)
+
+
+class OccurrenceSkipView(LoginRequiredMixin, View):
+    """Exclude one recurring occurrence while preserving its row and history."""
+
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        block = get_object_or_404(
+            TimeBlock.objects.select_related('recurrence_series'),
+            pk=kwargs['pk'],
+            user=request.user,
+        )
+        if block.recurrence_series_id is None or block.scheduled_date is None:
+            return HttpResponseBadRequest('This card is not a recurring occurrence.')
+        block.recurrence_series.exceptions.get_or_create(occurrence_date=block.scheduled_date)
+        block.skipped = True
+        block.save(update_fields=['skipped'])
+        record_activity(
+            block,
+            request.user,
+            'occurrence_skipped',
+            {'date': block.scheduled_date.isoformat()},
+        )
+        return _render_card_detail_response(request, block)
 
 
 def _render_palette_response(request):

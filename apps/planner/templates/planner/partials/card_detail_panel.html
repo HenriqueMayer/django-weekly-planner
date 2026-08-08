@@ -24,6 +24,32 @@
             <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:shadow-indigo-500/10 dark:focus:ring-offset-[#313335]">Save card</button>
         </form>
 
+        {% if recurrence_form %}
+            <section class="mt-8 border-t border-slate-200 pt-6 dark:border-slate-700" aria-labelledby="recurrence-title">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 id="recurrence-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Weekly recurrence</h3>
+                    {% if not block.skipped %}
+                        <form method="post" action="{% url 'planner:occurrence-skip' block.pk %}" hx-post="{% url 'planner:occurrence-skip' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                            {% csrf_token %}<input type="hidden" name="week" value="{{ selected_week_value }}">
+                            <button type="submit" class="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-500/10">Skip this occurrence</button>
+                        </form>
+                    {% else %}
+                        <span class="text-xs font-medium text-rose-600 dark:text-rose-300">Skipped</span>
+                    {% endif %}
+                </div>
+                <form class="mt-3 space-y-3" method="post" action="{% url 'planner:recurrence-update' block.pk %}" hx-post="{% url 'planner:recurrence-update' block.pk %}" hx-target="#card-panel" hx-swap="outerHTML">
+                    {% csrf_token %}<input type="hidden" name="week" value="{{ selected_week_value }}">
+                    {% include 'partials/form_field.html' with field=recurrence_form.ends_on %}
+                    <span class="block text-sm font-medium text-slate-700 dark:text-neutral-300">{{ recurrence_form.weekdays.label }}</span>
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        {% for choice in recurrence_form.weekdays %}<label class="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-700 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-600 dark:text-neutral-200 dark:has-[:checked]:bg-indigo-500/10">{{ choice.tag }} <span>{{ choice.choice_label|slice:':3' }}</span></label>{% endfor %}
+                    </div>
+                    {% for error in recurrence_form.weekdays.errors %}<p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>{% endfor %}
+                    <button type="submit" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-neutral-200 dark:hover:bg-[#3a3a3a]">Save recurrence</button>
+                </form>
+            </section>
+        {% endif %}
+
         <section class="mt-8" aria-labelledby="card-activity-title">
             <h3 id="card-activity-title" class="text-sm font-semibold text-slate-900 dark:text-neutral-100">Activity</h3>
             <ol class="mt-3 space-y-3 border-l border-slate-200 pl-4 dark:border-slate-700">

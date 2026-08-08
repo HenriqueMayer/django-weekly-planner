@@ -1,6 +1,6 @@
 """Creation and materialization helpers for weekly recurrence rules."""
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -75,3 +75,14 @@ def create_weekly_series(*, user, label, start_time, end_time, starts_on, weekda
     )
     materialize_series(series)
     return series
+
+
+@transaction.atomic
+def update_weekly_series(series, effective_from=None):
+    """Apply the changed rule to future, non-skipped occurrences."""
+    effective_from = max(effective_from or date.today(), series.starts_on)
+    series.occurrences.filter(
+        scheduled_date__gte=effective_from,
+        skipped=False,
+    ).delete()
+    return materialize_series(series, from_date=effective_from)

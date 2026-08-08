@@ -256,6 +256,7 @@ class TimeBlock(TimestampedModel):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANNED)
     due_at = models.DateTimeField(null=True, blank=True)
+    skipped = models.BooleanField(default=False)
     recurrence_series = models.ForeignKey(
         RecurrenceSeries,
         on_delete=models.CASCADE,
@@ -331,7 +332,7 @@ class TimeBlock(TimestampedModel):
 
     def _same_day_queryset(self):
         """Return the user's other blocks on the same day (excludes self)."""
-        queryset = TimeBlock.objects.filter(user=self.user)
+        queryset = TimeBlock.objects.filter(user=self.user, skipped=False)
         if self.scheduled_date is not None:
             queryset = queryset.filter(
                 Q(scheduled_date=self.scheduled_date)

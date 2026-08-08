@@ -9,6 +9,7 @@ from apps.planner.dates import normalize_week_start
 from apps.planner.models import (
     BlockColor,
     PlannerSettings,
+    RecurrenceSeries,
     TimeBlock,
     minutes_since_midnight,
 )
@@ -159,6 +160,35 @@ class CardDetailForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({'class': INPUT_CLASSES})
+
+
+class RecurrenceForm(forms.ModelForm):
+    """Edit the future schedule of a recurring series."""
+
+    weekdays = forms.MultipleChoiceField(
+        choices=TimeBlock.DAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    class Meta:
+        model = RecurrenceSeries
+        fields = ['weekdays', 'ends_on']
+        widgets = {
+            'ends_on': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.initial['weekdays'] = [str(day) for day in self.instance.weekdays]
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': INPUT_CLASSES})
+
+    def clean_weekdays(self):
+        weekdays = [int(day) for day in self.cleaned_data['weekdays']]
+        if not weekdays:
+            raise ValidationError('Choose at least one weekly day.')
+        return weekdays
 
 
 class BlockColorForm(forms.ModelForm):

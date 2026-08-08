@@ -12,6 +12,9 @@
   continue to use the same planner data source.
 - Added transactional `create_weekly_series()` and `materialize_series()` helpers.
 - Added weekly recurrence controls to the inline block creation form.
+- Added card-panel editing for weekly days and the inclusive end date.
+- Added a per-occurrence skip action that persists an exception and hides the
+  occurrence from the grid without deleting its activity history.
 - Added overlap-tolerant materialization: a conflicting occurrence is skipped,
   while later dates in the same series are still created.
 - Registered recurrence models in Django admin.
@@ -28,13 +31,13 @@
 
 ## Deliberate scope boundary
 
-Editing a recurrence rule from the card panel and a user-facing "skip this
-occurrence" action are reserved for a follow-up interaction pass. The domain
-model and service layer already support both without changing the grid source.
+Changing the label, time, color, or status of all future occurrences at once is
+reserved for a later bulk-edit pass. Rule edits currently apply the recurrence
+days and end date to future non-skipped occurrences.
 
 ## Verification
 
-- Full Django test suite: 116 tests.
+- Full Django test suite: 119 tests.
 - `python manage.py check`.
 - `python manage.py makemigrations --check --dry-run`.
 - `ruff check apps static`.

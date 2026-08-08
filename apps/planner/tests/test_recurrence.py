@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.planner.models import ActivityEvent, RecurrenceException, RecurrenceSeries, TimeBlock
-from apps.planner.recurrence import create_weekly_series, materialize_series
+from apps.planner.recurrence import create_weekly_series, materialize_series, update_weekly_series
 
 User = get_user_model()
 
@@ -96,6 +96,25 @@ class RecurrenceSeriesTests(TestCase):
                 weekdays=[7],
             )
 
+    def test_updating_rule_rebuilds_future_non_skipped_occurrences(self):
+        series = create_weekly_series(
+            user=self.user,
+            label='Focus',
+            start_time=time(9),
+            end_time=time(10),
+            starts_on=date(2026, 8, 3),
+            weekdays=[0],
+            ends_on=date(2026, 8, 24),
+        )
+        series.weekdays = [2]
+        series.save()
+        update_weekly_series(series, effective_from=date(2026, 8, 10))
+
+        self.assertEqual(
+            list(series.occurrences.values_list('scheduled_date', flat=True)),
+            [date(2026, 8, 3), date(2026, 8, 12), date(2026, 8, 19)],
+        )
+
 
 class RecurrenceCreateViewTests(TestCase):
     def setUp(self):
@@ -118,3 +137,43 @@ class RecurrenceCreateViewTests(TestCase):
         series = RecurrenceSeries.objects.get(user=self.user)
         self.assertEqual(series.occurrences.count(), 8)
         self.assertEqual(ActivityEvent.objects.filter(event_type='recurrence_created').count(), 1)
+
+    def test_skip_occurrence_hides_it_and_creates_exception(self):
+        series = create_weekly_series(
+            user=self.user,
+            label='Weekly review',
+            start_time=time(9),
+            end_time=time(10),
+            starts_on=date(2026, 8, 3),
+            weekdays=[0],
+            ends_on=date(2026, 8, 17),
+        )
+        occurrence = series.occurrences.get(scheduled_date=date(2026, 8, 10))
+
+        response = self.client.post(reverse('planner:occurrence-skip', args=[occurrence.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        occurrence.refresh_from_db()
+        self.assertTrue(occurrence.skipped)
+        self.assertTrue(series.exceptions.filter(occurrence_date=date(2026, 8, 10)).exists())
+        self.assertTrue(occurrence.activity_events.filter(event_type='occurrence_skipped').exists())
+
+    def test_recurrence_update_is_ownership_scoped(self):
+        other = User.objects.create_user(username='bob', password='pass12345')
+        series = create_weekly_series(
+            user=other,
+            label='Private',
+            start_time=time(9),
+            end_time=time(10),
+            starts_on=date(2026, 8, 3),
+            weekdays=[0],
+            ends_on=date(2026, 8, 17),
+        )
+        occurrence = series.occurrences.first()
+
+        response = self.client.post(
+            reverse('planner:recurrence-update', args=[occurrence.pk]),
+            {'weekdays': ['1'], 'ends_on': '2026-08-24'},
+        )
+
+        self.assertEqual(response.status_code, 404)

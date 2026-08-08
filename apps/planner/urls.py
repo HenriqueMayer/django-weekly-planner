@@ -18,7 +18,9 @@ from apps.planner.views import (
     ExportMarkdownView,
     ExportSVGView,
     GridView,
+    OccurrenceSkipView,
     PaletteView,
+    RecurrenceUpdateView,
     SettingsUpdateView,
 )
 
@@ -38,6 +40,12 @@ urlpatterns = [
         CardDetailUpdateView.as_view(),
         name='card-detail-update',
     ),
+    path(
+        'blocks/<int:pk>/recurrence/update/',
+        RecurrenceUpdateView.as_view(),
+        name='recurrence-update',
+    ),
+    path('blocks/<int:pk>/skip/', OccurrenceSkipView.as_view(), name='occurrence-skip'),
     path('cells/cancel/', CellCancelView.as_view(), name='cell-cancel'),
     path('colors/', PaletteView.as_view(), name='palette'),
     path('colors/create/', ColorCreateView.as_view(), name='color-create'),
